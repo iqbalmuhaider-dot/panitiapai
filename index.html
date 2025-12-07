@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eTasmik SK Masjid Tanah (Integrasi)</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .loader { border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top: 2px solid #ffffff; width: 16px; height: 16px; -webkit-animation: spin 0.8s linear infinite; animation: spin 0.8s linear infinite; }
+        .loader-dark { border: 3px solid #f3f3f3; border-radius: 50%; border-top: 3px solid #3498db; width: 24px; height: 24px; -webkit-animation: spin 0.8s linear infinite; animation: spin 0.8s linear infinite; }
+        @-webkit-keyframes spin { 0% { -webkit-transform: rotate(0deg); } 100% { -webkit-transform: rotate(360deg); } }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .grid-iqra { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 1rem; }
+        .grid-juz { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 0.5rem; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen overflow-hidden flex flex-col">
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- App Container -->
+    <div id="app" class="flex-1 flex flex-col h-full overflow-hidden relative">
+        <div class="flex h-screen items-center justify-center flex-col text-slate-500">
+            <div class="loader-dark mb-4"></div>
+            <p>Memuatkan Sistem...</p>
+        </div>
+    </div>
+
+    <!-- Modal Container (General) -->
+    <div id="modal-overlay" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center p-4 border-b bg-slate-50">
+                <h3 id="modal-title" class="font-bold text-lg text-slate-800">Tajuk Modal</h3>
+                <button onclick="closeModal()" class="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                    <i data-lucide="x" class="w-5 h-5 text-slate-500"></i>
+                </button>
+            </div>
+            <div id="modal-content" class="p-6 overflow-y-auto"></div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal (Specific for Delete) -->
+    <div id="confirm-modal" class="fixed inset-0 bg-black/60 z-[60] hidden flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+        <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center transform transition-all scale-100 border border-slate-100">
+            <div class="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+                <i data-lucide="alert-triangle" class="w-8 h-8"></i>
+            </div>
+            <h3 class="text-xl font-bold text-slate-800 mb-2">Pengesahan Padam</h3>
+            <p id="confirm-message" class="text-slate-600 mb-8 text-sm leading-relaxed">Adakah anda pasti?</p>
+            <div class="flex gap-3 justify-center">
+                <button onclick="closeConfirmModal()" class="flex-1 px-4 py-3 text-slate-600 hover:bg-slate-100 rounded-xl font-bold transition-colors border border-slate-200">Batal</button>
+                <button id="confirm-btn-action" class="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition-transform active:scale-95 flex items-center justify-center gap-2">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i> Padam
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase & Logic Script -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // 1. CONFIGURATION
+        const firebaseConfig = {
+            apiKey: "AIzaSyDgwjifR8PWZiBLmbjCTzVhY_t5AMMVT0E",
+            authDomain: "etasmik-4df92.firebaseapp.com",
+            databaseURL: "https://etasmik-4df92-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "etasmik-4df92",
+            storageBucket: "etasmik-4df92.firebasestorage.app",
+            messagingSenderId: "49506975458",
+            appId: "1:49506975458:web:c7d3b9f2be140e0cf628bb",
+            measurementId: "G-RC47MRQ5SP"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        const USERS_COL = 'users';
+        const STUDENTS_COL = 'students';
+        const RECORDS_COL = 'records';
+        const CONFIG_COL = 'config';
+
+        // 2. STATE
+        const state = {
+            view: 'login',
+            user: null,
+            users: [],
+            students: [],
+            config: { url: '' },
+            loginMode: 'guru',
+            activeTab: 'analisis',
+            selectedClass: '',
+            searchTerm: '',
+            filterClassAdmin: '',
+            selectedStudentIds: [],
+            studentHistory: null,
+            localEdits: {},
+            // NEW: Analysis State
+            analysis: {
+                loading: false,
+                data: null,
+                filter: {
+                    class: '',
+                    month: '', // 1-12
+                    year: new Date().getFullYear().toString()
+                }
+            }
+        };
+
+        // 3. LISTENERS
+        function initListeners() {
+            onSnapshot(collection(db, USERS_COL), (snap) => {
+                state.users = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
+                if (state.view !== 'admin-dash' || state.activeTab !== 'analisis') renderApp();
+            }, (err) => console.error(err));
+
+            onSnapshot(collection(db, STUDENTS_COL), (snap) => {
+                state.students = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                // Only auto re-render if NOT analyzing with filters (which uses snapshot of records)
+                if (state.view !== 'admin-dash' || state.activeTab !== 'analisis') renderApp();
+                else if (state.activeTab === 'analisis' && !state.analysis.filter.month) {
+                    // If simple current view, refresh
+                    window.runAnalysis();
+                }
+            });
+
+            onSnapshot(doc(db, CONFIG_COL, 'settings'), (snap) => {
+                if(snap.exists()) state.config = snap.data();
+            });
+        }
+
+        // 4. HELPER FUNCTIONS
+        const juzukStartPages = [1, 22, 42, 62, 82, 102, 122, 142, 162, 182, 202, 222, 242, 262, 282, 302, 322, 342, 362, 382, 402, 422, 442, 462, 482, 502, 522, 542, 562, 582, 605];
+        window.getJuzukByPage = (page) => {
+            const p = parseInt(page);
+            if (isNaN(p) || p < 1) return '-';
+            if (p > 604) return 'Tamat';
+            for (let i = 0; i < 30; i++) {
+                if (p >= juzukStartPages[i] && p < juzukStartPages[i+1]) return i + 1;
+            }
+            return 30;
+        };
+
+        function getFilteredStudents() {
+            let list = state.students;
+            if (state.view === 'teacher-dash' && state.user) {
+                list = list.filter(s => s.guru_tasmik_id === state.user.id);
+                if (state.selectedClass) list = list.filter(s => s.kelas === state.selectedClass);
+            }
+            if (state.view === 'admin-dash') {
+                 if (state.activeTab === 'murid' && state.filterClassAdmin) {
+                     list = list.filter(s => s.kelas === state.filterClassAdmin);
+                 }
+            }
+            if (state.searchTerm) {
+                list = list.filter(s => s.nama_murid.toLowerCase().includes(state.searchTerm.toLowerCase()));
+            }
+            return list.sort((a,b) => a.nama_murid.localeCompare(b.nama_murid));
+        }
+
+        function getUniqueClasses() {
+            // Global unique classes for dropdowns
+            return [...new Set(state.students.map(s => s.kelas).filter(Boolean))].sort();
+        }
+
+        window.sendToGoogleSheet = async (data) => {
+            if (!state.config.url) return;
+            try {
+                await fetch(state.config.url, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+            } catch (e) { console.error("Sheet Error:", e); }
+        }
+
+        window.showToast = (message, type='success') => {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = "bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px] transform transition-all duration-300 translate-x-full opacity-0 pointer-events-auto";
+            toast.innerHTML = `<i data-lucide="check-circle" class="w-5 h-5"></i><span class="font-medium text-sm">${message}</span>`;
+            container.appendChild(toast);
+            lucide.createIcons();
+            requestAnimationFrame(() => toast.classList.remove('translate-x-full', 'opacity-0'));
+            setTimeout(() => { toast.classList.add('translate-x-full', 'opacity-0'); setTimeout(() => toast.remove(), 300); }, 3000);
+        };
+
+        // 5. CORE LOGIC & GLOBAL FUNCTIONS
+        window.handleLocalEdit = (studentId, field, value) => {
+            if (!state.localEdits[studentId]) state.localEdits[studentId] = {};
+            state.localEdits[studentId][field] = value;
+        };
+        
+        // --- ANALYSIS LOGIC ---
+        window.setAnalysisFilter = (field, value) => {
+            state.analysis.filter[field] = value;
+            // Delay slightly to allow UI update before heavy calc if needed, though simple calc is fast
+            setTimeout(window.runAnalysis, 10);
+        };
+
+        window.runAnalysis = async () => {
+            state.analysis.loading = true;
+            renderApp(); // Show loading state in analysis tab
+
+            const { class: cls, month, year } = state.analysis.filter;
+            let dataset = [];
+
+            try {
+                if (!month) {
+                    // --- CASE 1: Current Status (No Month Filter) ---
+                    // Use the latest data from students collection
+                    // If year is past year, this might be inaccurate, but "Current Status" implies "Now".
+                    // If user selects 2023 but no month, we usually assume "End of 2023" or "Current".
+                    // For simplicity: If no month is selected, we show CURRENT status regardless of year (or we could force current year).
+                    // Let's assume No Month = Current Live Data.
+                    dataset = state.students.map(s => ({
+                        class: s.kelas,
+                        iqraLevel: s.last_iqra_level,
+                        quranPage: s.last_quran_page,
+                        isQuran: !!s.last_quran_page
+                    }));
+                } else {
+                    // --- CASE 2: Historical Status (By Month/Year) ---
+                    const mIndex = parseInt(month) - 1; // 0-based
+                    const yInt = parseInt(year);
+                    
+                    const firstDay = new Date(yInt, mIndex, 1);
+                    const lastDay = new Date(yInt, mIndex + 1, 0);
+                    
+                    // Format dates for string comparison (stored as YYYY-MM-DD in Firestore)
+                    const startStr = firstDay.toISOString().split('T')[0];
+                    const endStr = lastDay.toISOString().split('T')[0];
+
+                    const qRec = query(collection(db, RECORDS_COL), 
+                        where('date', '>=', startStr), 
+                        where('date', '<=', endStr)
+                    );
+
+                    const snap = await getDocs(qRec);
+                    const records = snap.docs.map(d => d.data());
+
+                    // We need the LATEST record per student within this month
+                    const studentMap = {};
+                    records.forEach(r => {
+                        // Key by studentId
+                        if (!studentMap[r.studentId]) {
+                            studentMap[r.studentId] = r;
+                        } else {
+                            // Compare dates to find latest
+                            const curr = studentMap[r.studentId];
+                            if (r.date > curr.date || (r.date === curr.date && r.timestamp?.seconds > curr.timestamp?.seconds)) {
+                                studentMap[r.studentId] = r;
+                            }
+                        }
+                    });
+
+                    // Map to analysis format
+                    dataset = Object.values(studentMap).map(r => ({
+                        class: r.class,
+                        iqraLevel: r.iqraLevel, // stored as "1", "2" etc
+                        quranPage: r.quranPage,
+                        isQuran: !!r.quranPage
+                    }));
+                }
+
+                // Filter by Class (In Memory)
+                if (cls) {
+                    dataset = dataset.filter(d => d.class === cls);
+                }
+
+                // Calculate Stats
+                const stats = {
+                    total: dataset.length,
+                    iqraTotal: 0,
+                    quranTotal: 0,
+                    iqraBreakdown: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
+                    juzBreakdown: {}
+                };
+                for(let i=1; i<=30; i++) stats.juzBreakdown[i] = 0;
+
+                dataset.forEach(d => {
+                    if (d.isQuran || d.quranPage) {
+                        stats.quranTotal++;
+                        const page = parseInt(d.quranPage);
+                        const juz = window.getJuzukByPage(page);
+                        if (juz !== '-' && juz !== 'Tamat') {
+                            stats.juzBreakdown[juz] = (stats.juzBreakdown[juz] || 0) + 1;
+                        }
+                    } else if (d.iqraLevel) {
+                        stats.iqraTotal++;
+                        // Extract number from "Iqra 1" or just "1"
+                        let level = d.iqraLevel.toString().replace(/\D/g, ''); 
+                        if (stats.iqraBreakdown[level] !== undefined) {
+                            stats.iqraBreakdown[level]++;
+                        }
+                    }
+                });
+
+                state.analysis.data = stats;
+
+            } catch (err) {
+                console.error("Analysis Error:", err);
+                alert("Gagal memuatkan analisis: " + err.message);
+            } finally {
+                state.analysis.loading = false;
+                renderApp();
+            }
+        };
+
+        // ... confirmation logic ...
+        let confirmCallback = null;
+        window.openConfirmModal = (message, callback) => {
+            document.getElementById('confirm-message').innerText = message;
+            confirmCallback = callback;
+            document.getElementById('confirm-modal').classList.remove('hidden');
+        };
+        window.closeConfirmModal = () => {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            confirmCallback = null;
+        };
+        document.getElementById('confirm-btn-action').addEventListener('click', async () => {
+            if (confirmCallback) {
+                const btn = document.getElementById('confirm-btn-action');
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = `<div class="loader w-4 h-4 border-2 border-white border-t-transparent"></div>`;
+                btn.disabled = true;
+                try { await confirmCallback(); } catch (e) { alert("Ralat: " + e.message); } 
+                finally { btn.innerHTML = originalHtml; btn.disabled = false; closeConfirmModal(); }
+            } else { closeConfirmModal(); }
+        });
+
+        // Global Delete
+        window.handleDeleteRecord = (event, collectionName, id) => {
+            event.stopPropagation();
+            window.openConfirmModal("Padam rekod ini?", async () => {
+                await deleteDoc(doc(db, collectionName, id));
+                window.showToast("Dipadam!");
+            });
+        };
+        window.handleDeleteAll = (type) => {
+            window.openConfirmModal(`AMARAN: Padam SEMUA data ${type}?`, async () => {
+                const q = type === 'guru' ? query(collection(db, USERS_COL), where('role', '==', 'guru')) : collection(db, STUDENTS_COL);
+                const snap = await getDocs(q);
+                const batch = writeBatch(db);
+                snap.docs.forEach(d => batch.delete(d.ref));
+                await batch.commit();
+                window.showToast(`Data ${type} dipadam.`);
+            });
+        };
+        window.handleSystemReset = () => {
+            window.openConfirmModal("RESET SISTEM? Sila sahkan.", async () => { alert("Sila padam di Firebase Console."); });
+        };
+
+        async function _execSaveRecord(studentId) {
+             const typeRaw = document.getElementById(`type-${studentId}`).value;
+             const page = document.getElementById(`page-${studentId}`).value;
+             const status = document.getElementById(`status-${studentId}`).value;
+             const isQuran = typeRaw === 'Al-Quran';
+             const student = state.students.find(s => s.id === studentId);
+             const today = new Date().toISOString().split('T')[0];
+             const recordData = {
+                 studentId, studentName: student.nama_murid, class: student.kelas,
+                 iqraLevel: isQuran ? '' : typeRaw.split(' ')[1], iqraPage: isQuran ? '' : page, iqraStatus: isQuran ? '' : status,
+                 quranPage: isQuran ? page : '', quranStatus: isQuran ? status : '',
+                 date: today, guru_id: state.user.id, guru_nama: state.user.nama, timestamp: serverTimestamp()
+             };
+             await addDoc(collection(db, RECORDS_COL), recordData);
+             await updateDoc(doc(db, STUDENTS_COL, studentId), {
+                 last_iqra_level: recordData.iqraLevel, last_iqra_page: recordData.iqraPage, last_iqra_status: recordData.iqraStatus,
+                 last_quran_page: recordData.quranPage, last_quran_status: recordData.quranStatus, last_tasmik_date: today
+             });
+             window.sendToGoogleSheet({ ...recordData, tarikh: today, nama_murid: student.nama_murid, kelas: student.kelas, jenis: isQuran ? "Al-Quran" : "Iqra", tahap: isQuran ? `Juz ${window.getJuzukByPage(page)}` : `Iqra ${recordData.iqraLevel}`, muka_surat: page || "-", status: status });
+        }
+
+        window.setLoginMode = (mode) => { state.loginMode = mode; renderApp(); };
+        window.handleLogin = async (e) => {
+            e.preventDefault();
+            if (state.loginMode === 'admin') {
+                const id = document.getElementById('loginAdminId').value; const pass = document.getElementById('loginAdminPass').value;
+                const admin = state.users.find(u => u.role === 'admin' && u.nama.toLowerCase() === id.toLowerCase());
+                if (!admin && id === 'admin' && pass === 'admin123') { await addDoc(collection(db, USERS_COL), { nama: 'admin', role: 'admin', katalaluan: 'admin123', status: 'Aktif', createdAt: serverTimestamp() }); window.location.reload(); return; }
+                if (admin && (pass === admin.katalaluan || pass === admin.ic_akhir)) { state.user = admin; state.view = 'admin-dash'; window.runAnalysis(); } 
+                else { alert('Log masuk gagal.'); }
+            } else {
+                const id = document.getElementById('loginGuruId').value; const ic = document.getElementById('loginIc').value;
+                const guru = state.users.find(u => u.id === id);
+                if (guru && ic === (guru.ic_akhir || '1234')) { state.user = guru; state.view = 'teacher-dash'; renderApp(); } 
+                else { alert('Log masuk gagal.'); }
+            }
+        };
+        
+        window.handleLogout = () => { state.user = null; state.view = 'login'; renderApp(); };
+        window.setActiveTab = (tab) => { 
+            state.activeTab = tab; 
+            if(tab === 'analisis') window.runAnalysis();
+            else renderApp(); 
+        };
+        window.setSelectedClass = (val) => { state.selectedClass = val; renderApp(); };
+        window.setAdminFilter = (val) => { state.filterClassAdmin = val; renderApp(); };
+        window.setSearchTerm = (val) => { state.searchTerm = val; renderApp(); };
+        window.updateJuzukDisplay = (id) => {
+            const typeEl = document.getElementById(`type-${id}`); const pageEl = document.getElementById(`page-${id}`);
+            if(!typeEl || !pageEl) return;
+            const badge = document.getElementById(`juz-${id}`);
+            if (typeEl.value === 'Al-Quran' && pageEl.value) { badge.textContent = `Juz ${window.getJuzukByPage(pageEl.value)}`; badge.className = "text-xs bg-blue-100 text-blue-700 font-bold px-2 py-1 rounded"; } 
+            else { badge.textContent = "-"; badge.className = "text-slate-300 text-xs"; }
+        };
+        window.saveSingleRecord = async (studentId, btnElement) => {
+             const originalContent = btnElement.innerHTML; btnElement.disabled = true; btnElement.innerHTML = `<div class="loader w-4 h-4 border-2 border-white border-t-transparent"></div>`;
+             try { await _execSaveRecord(studentId); window.showToast("Disimpan"); } catch (e) { alert("Ralat: " + e.message); } finally { btnElement.disabled = false; btnElement.innerHTML = originalContent; }
+        };
+        window.openBatchConfirmation = () => {
+            const rows = document.querySelectorAll('tr[id^="row-"]');
+            let summaryHtml = `<div class="mb-4 text-sm text-slate-600">Pelajar dikemaskini:</div><div class="max-h-[50vh] overflow-y-auto border rounded-lg mb-4 bg-slate-50"><table class="w-full text-sm text-left"><thead class="bg-slate-100 border-b"><tr><th class="p-2">Nama</th><th class="p-2">Bacaan</th></tr></thead><tbody class="divide-y">`;
+            let count = 0; rows.forEach(row => { summaryHtml += `<tr><td class="p-2">${row.querySelector('.font-bold').innerText}</td><td class="p-2">Data baru</td></tr>`; count++; });
+            summaryHtml += `</tbody></table></div><div class="flex gap-2 justify-end"><button onclick="closeModal()" class="px-4 py-2 text-slate-600">Batal</button><button id="confirmBatchBtn" onclick="confirmBatchSave()" class="px-6 py-2 bg-blue-600 text-white rounded-lg">Simpan (${count})</button></div>`;
+            document.getElementById('modal-title').innerText = "Simpan Pukal"; document.getElementById('modal-content').innerHTML = summaryHtml; document.getElementById('modal-overlay').classList.remove('hidden');
+        };
+        window.confirmBatchSave = async () => {
+            const btn = document.getElementById('confirmBatchBtn'); btn.disabled = true; btn.innerText = "Menyimpan...";
+            const rows = document.querySelectorAll('tr[id^="row-"]');
+            try { for (const row of rows) { await _execSaveRecord(row.id.replace('row-', '')); } window.showToast("Semua disimpan!"); closeModal(); } catch (e) { alert(e.message); }
+        };
+        window.handleCSVImport = (input) => { const file = input.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = async (e) => { const lines = e.target.result.split('\n'); const batch = writeBatch(db); let count = 0; const teachers = state.users.filter(u => u.role === 'guru'); for(let i=1; i<lines.length && count < 450; i++) { const cols = lines[i].trim().split(','); if(cols.length >= 2) { const [nama, kelas, namaGuru] = cols; let guruId = '', guruNama = ''; if (namaGuru) { const match = teachers.find(t => t.nama.toLowerCase() === namaGuru.trim().toLowerCase()); if (match) { guruId = match.id; guruNama = match.nama; } else { const newRef = doc(collection(db, USERS_COL)); batch.set(newRef, { nama: namaGuru.trim(), role: 'guru', ic_akhir: '1234', status: 'Aktif', createdAt: serverTimestamp() }); guruId = newRef.id; guruNama = namaGuru.trim(); } } const newRef = doc(collection(db, STUDENTS_COL)); batch.set(newRef, { nama_murid: nama.trim(), kelas: kelas?.trim(), guru_tasmik_id: guruId, guru_tasmik_nama: guruNama, status: 'Aktif', createdAt: serverTimestamp() }); count++; } } await batch.commit(); window.showToast(`${count} rekod diimport.`); renderApp(); }; reader.readAsText(file); };
+        window.saveSheetUrl = async () => { const url = document.getElementById('sheetUrl').value; await setDoc(doc(db, CONFIG_COL, 'settings'), { url }); window.showToast("Disimpan"); };
+        
+        window.openModal = (type, id = null) => {
+             let content = '', data = null;
+             if (id) { if (type === 'guru') data = state.users.find(u => u.id === id); else data = state.students.find(s => s.id === id); }
+             if (type === 'guru') { content = `<form onsubmit="saveGuru(event, '${id||''}')" class="space-y-4"><input name="nama" value="${data?data.nama:''}" placeholder="Nama" class="w-full p-2 border rounded" required><button class="bg-blue-600 text-white p-2 rounded w-full">Simpan</button></form>`; } 
+             else { const teacherOpts = state.users.filter(u=>u.role==='guru').map(t=>`<option value="${t.id}" ${data?.guru_tasmik_id===t.id?'selected':''}>${t.nama}</option>`).join(''); content = `<form onsubmit="saveStudent(event, '${id||''}')" class="space-y-4"><input name="nama" value="${data?data.nama_murid:''}" placeholder="Nama" class="w-full p-2 border rounded" required><input name="kelas" value="${data?data.kelas:''}" placeholder="Kelas" class="w-full p-2 border rounded"><select name="guru" class="w-full p-2 border rounded"><option value="">--Guru--</option>${teacherOpts}</select><button class="bg-blue-600 text-white p-2 rounded w-full">Simpan</button></form>`; }
+             document.getElementById('modal-title').innerText = id ? "Edit" : "Tambah"; document.getElementById('modal-content').innerHTML = content; document.getElementById('modal-overlay').classList.remove('hidden');
+             window.saveGuru = async (e, eid) => { e.preventDefault(); try { const p = {nama: e.target.nama.value}; if(eid) await updateDoc(doc(db,USERS_COL,eid),p); else {p.role='guru';p.ic_akhir='1234';p.createdAt=serverTimestamp();await addDoc(collection(db,USERS_COL),p);} closeModal(); window.showToast("Berjaya"); } catch(er){alert(er.message);} }
+             window.saveStudent = async (e, eid) => { e.preventDefault(); try { const gid=e.target.guru.value; const p={nama_murid:e.target.nama.value, kelas:e.target.kelas.value, guru_tasmik_id:gid, guru_tasmik_nama:state.users.find(u=>u.id===gid)?.nama||''}; if(eid) await updateDoc(doc(db,STUDENTS_COL,eid),p); else {p.createdAt=serverTimestamp();await addDoc(collection(db,STUDENTS_COL),p);} closeModal(); window.showToast("Berjaya"); } catch(er){alert(er.message);} }
+        };
+        window.viewHistory = async (studentId) => {
+            const q = query(collection(db, RECORDS_COL), where('studentId', '==', studentId)); const snap = await getDocs(q); const list = snap.docs.map(d => d.data()).sort((a,b) => new Date(b.date) - new Date(a.date));
+            const content = `<div class="space-y-3">${list.length > 0 ? list.map(h => `<div class="bg-slate-50 p-3 rounded text-sm"><div><span class="text-xs text-gray-500">${h.date}</span></div><div>${h.iqraLevel ? `Iqra ${h.iqraLevel}` : `Juz ${window.getJuzukByPage(h.quranPage)} (MS ${h.quranPage})`}</div></div>`).join('') : '<p class="text-center text-slate-400">Tiada rekod.</p>'}</div>`;
+            document.getElementById('modal-title').innerText = "Sejarah"; document.getElementById('modal-content').innerHTML = content; document.getElementById('modal-overlay').classList.remove('hidden');
+        };
+        window.closeModal = () => { document.getElementById('modal-overlay').classList.add('hidden'); };
+        
+        // --- RENDER ---
+        function renderApp() {
+            const app = document.getElementById('app');
+            if (state.view === 'login') app.innerHTML = renderLogin();
+            else if (state.view === 'teacher-dash') app.innerHTML = renderTeacherDash();
+            else if (state.view === 'admin-dash') app.innerHTML = renderAdminDash();
+            lucide.createIcons();
+            setupEventListeners();
+        }
+
+        function renderLogin() {
+            const teachersList = state.users.filter(u => u.role === 'guru');
+            const options = teachersList.map(t => `<option value="${t.id}">${t.nama}</option>`).join('');
+            return `<div class="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans w-full"><div class="bg-white w-full max-w-md p-8 rounded-2xl shadow-xl border border-slate-200"><div class="text-center mb-8"><img src="https://i.postimg.cc/k4N1mPR1/semat-04.png" alt="Logo SKMT" class="w-28 h-auto mx-auto mb-4 drop-shadow-md" /><h1 class="text-2xl font-bold text-slate-800">eTasmik SK Masjid Tanah (Integrasi)</h1><p class="text-slate-500 text-sm mt-1">Log Masuk</p></div><div class="flex bg-slate-100 p-1 rounded-xl mb-6"><button onclick="setLoginMode('guru')" class="flex-1 py-2 text-sm font-bold rounded-lg transition-all ${state.loginMode === 'guru' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}">Guru</button><button onclick="setLoginMode('admin')" class="flex-1 py-2 text-sm font-bold rounded-lg transition-all ${state.loginMode === 'admin' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}">Admin</button></div><form id="loginForm" class="space-y-4">${state.loginMode === 'guru' ? `<div class="relative"><div class="absolute left-3 top-3.5 text-slate-400"><i data-lucide="user" class="w-5 h-5"></i></div><select id="loginGuruId" class="w-full pl-10 p-3 border rounded-xl bg-white outline-none"><option value="">-- Pilih Guru --</option>${options}</select></div><div class="relative"><div class="absolute left-3 top-3.5 text-slate-400"><i data-lucide="credit-card" class="w-5 h-5"></i></div><input type="password" id="loginIc" maxlength="4" class="w-full pl-10 p-3 border rounded-xl outline-none" placeholder="4 Digit Akhir IC"></div>` : `<div class="relative"><div class="absolute left-3 top-3.5 text-slate-400"><i data-lucide="user" class="w-5 h-5"></i></div><input type="text" id="loginAdminId" class="w-full pl-10 p-3 border rounded-xl outline-none" placeholder="ID Admin"></div><div class="relative"><div class="absolute left-3 top-3.5 text-slate-400"><i data-lucide="lock" class="w-5 h-5"></i></div><input type="password" id="loginAdminPass" class="w-full pl-10 p-3 border rounded-xl outline-none" placeholder="Kata Laluan"></div>`}<button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-lg transition-all active:scale-95">Log Masuk</button></form></div></div>`;
+        }
+
+        function renderTeacherDash() {
+            const classes = getUniqueClasses();
+            const students = getFilteredStudents();
+            const classOptions = classes.map(c => `<option value="${c}" ${state.selectedClass === c ? 'selected' : ''}>${c}</option>`).join('');
+            
+            const rows = students.length > 0 ? students.map((s, idx) => {
+                const local = state.localEdits[s.id] || {};
+                const dbIsQuran = s.last_quran_page ? true : false;
+                const dbType = dbIsQuran ? 'Al-Quran' : (s.last_iqra_level ? `Iqra ${s.last_iqra_level}` : 'Iqra 1');
+                const dbPage = dbIsQuran ? (s.last_quran_page || '') : (s.last_iqra_page || '');
+                const dbStatus = s.last_iqra_status || s.last_quran_status || 'Tasmik';
+                const currentType = local.type !== undefined ? local.type : dbType;
+                const currentPage = local.page !== undefined ? local.page : dbPage;
+                const currentStatus = local.status !== undefined ? local.status : dbStatus;
+                const isQuranView = currentType === 'Al-Quran';
+                const juzukDisplay = isQuranView && currentPage ? `Juz ${getJuzukByPage(currentPage)}` : '-';
+                
+                return `<tr class="border-b border-slate-100 hover:bg-blue-50 transition-colors group" id="row-${s.id}"><td class="p-3 align-middle text-center text-xs font-mono text-slate-400 w-10">${idx + 1}</td><td class="p-3 align-middle"><div class="font-bold text-slate-800 text-sm">${s.nama_murid}</div><div class="text-xs text-slate-400 font-mono">${s.no_id || '-'}</div></td><td class="p-2 align-middle"><select id="type-${s.id}" onchange="handleLocalEdit('${s.id}', 'type', this.value); updateJuzukDisplay('${s.id}')" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none min-w-[110px]"><optgroup label="Iqra">${[1,2,3,4,5,6].map(i => `<option value="Iqra ${i}" ${currentType === `Iqra ${i}` ? 'selected' : ''}>Iqra ${i}</option>`).join('')}</optgroup><optgroup label="Al-Quran"><option value="Al-Quran" ${currentType === 'Al-Quran' ? 'selected' : ''}>Al-Quran</option></optgroup></select></td><td class="p-2 align-middle"><input type="number" id="page-${s.id}" value="${currentPage}" oninput="handleLocalEdit('${s.id}', 'page', this.value); updateJuzukDisplay('${s.id}')" placeholder="MS" class="w-16 p-2 border border-slate-300 rounded-lg text-sm text-center focus:ring-2 focus:ring-blue-500 outline-none"/></td><td class="p-2 align-middle text-center"><span id="juz-${s.id}" class="text-xs ${isQuranView ? 'bg-blue-100 text-blue-700 font-bold px-2 py-1 rounded' : 'text-slate-300'}">${juzukDisplay}</span></td><td class="p-2 align-middle"><select id="status-${s.id}" onchange="handleLocalEdit('${s.id}', 'status', this.value)" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none"><option value="Tasmik" ${currentStatus === 'Tasmik' ? 'selected' : ''}>Tasmik</option><option value="Khatam" ${currentStatus === 'Khatam' ? 'selected' : ''}>Khatam</option></select></td><td class="p-2 align-middle text-right"><div class="flex items-center justify-end gap-2"><button onclick="saveSingleRecord('${s.id}', this)" class="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg shadow-sm transition-transform active:scale-95 flex items-center justify-center w-8 h-8"><i data-lucide="check" class="w-4 h-4"></i></button><button onclick="viewHistory('${s.id}')" class="text-slate-400 hover:text-blue-600 p-2 rounded-lg hover:bg-blue-50 w-8 h-8 flex items-center justify-center"><i data-lucide="history" class="w-4 h-4"></i></button></div></td></tr>`;
+            }).join('') : `<tr><td colspan="7" class="p-8 text-center text-slate-400">Tiada murid dalam kelas ini.</td></tr>`;
+            
+            return `<div class="h-full flex flex-col"><header class="bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b px-4 py-3 flex justify-between items-center shadow-sm"><div><h1 class="font-bold text-lg text-slate-800">eTasmik Guru</h1><p class="text-xs text-slate-500">${state.user.nama}</p></div><button onclick="handleLogout()" class="text-red-500 hover:bg-red-50 p-2 rounded-full"><i data-lucide="log-out" class="w-5 h-5"></i></button></header><main class="flex-1 overflow-y-auto p-4 max-w-5xl mx-auto w-full pb-24"><div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 mb-6"><label class="block text-sm font-bold mb-2 text-slate-600">Pilih Kelas Tasmik</label><div class="relative mb-4"><select onchange="setSelectedClass(this.value)" class="w-full p-3 border rounded-xl bg-slate-50 text-lg outline-none focus:ring-2 focus:ring-blue-500 appearance-none"><option value="">-- Sila Pilih Kelas --</option>${classOptions}</select><i data-lucide="chevron-down" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none w-5 h-5"></i></div>${state.selectedClass ? `<div class="relative animate-in fade-in slide-in-from-top-2"><div class="absolute left-3 top-3 text-slate-400"><i data-lucide="search" class="w-5 h-5"></i></div><input type="text" placeholder="Cari nama murid..." value="${state.searchTerm}" oninput="setSearchTerm(this.value)" class="w-full pl-10 p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all"></div>` : ''}</div>${state.selectedClass ? `<div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead class="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase text-xs tracking-wider"><tr><th class="p-4 w-10 text-center">#</th><th class="p-4 w-1/4">Nama Murid</th><th class="p-4 w-1/5">Bacaan</th><th class="p-4 w-20 text-center">MS</th><th class="p-4 w-20 text-center">Info</th><th class="p-4 w-1/6">Status</th><th class="p-4 text-right">Tindakan</th></tr></thead><tbody class="divide-y divide-slate-100">${rows}</tbody></table></div></div>` : `<div class="text-center py-20 text-slate-400"><i data-lucide="book-open" class="mx-auto mb-4 w-12 h-12 opacity-20"></i><p>Pilih kelas untuk mula.</p></div>`}</main>${state.selectedClass && students.length > 0 ? `<div class="fixed bottom-6 left-0 right-0 flex justify-center z-40"><button onclick="openBatchConfirmation()" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-full shadow-xl flex items-center gap-3 font-bold text-lg transition-transform hover:scale-105"><i data-lucide="save-all" class="w-6 h-6"></i> Simpan Semua Pukal</button></div>` : ''}</div>`;
+        }
+
+        function renderAdminDash() {
+            const navItems = [
+                {id: 'analisis', icon: 'pie-chart', label: 'Analisis'},
+                {id: 'guru', icon: 'user', label: 'Guru'},
+                {id: 'murid', icon: 'users', label: 'Murid'},
+                {id: 'import', icon: 'upload', label: 'Data / Import'}
+            ].map(i => `<button onclick="setActiveTab('${i.id}')" class="flex w-full items-center gap-3 p-3 rounded-xl text-sm font-medium transition-all ${state.activeTab === i.id ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}"><i data-lucide="${i.icon}" class="w-5 h-5"></i> ${i.label}</button>`).join('');
+
+            let content = '';
+            if (state.activeTab === 'analisis') {
+                const { data, loading, filter } = state.analysis;
+                const months = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
+                const classes = getUniqueClasses();
+                const currentYear = new Date().getFullYear();
+                const years = [currentYear, currentYear-1, currentYear-2];
+
+                let analysisContent = '';
+                if (loading) {
+                    analysisContent = `<div class="flex justify-center p-10"><div class="loader-dark"></div></div>`;
+                } else if (data) {
+                    // IQRA GRID
+                    const iqraGrid = [1,2,3,4,5,6].map(i => `
+                        <div class="bg-green-50 p-3 rounded-xl border border-green-100 text-center">
+                            <div class="text-xs text-green-600 font-bold uppercase mb-1">Iqra ${i}</div>
+                            <div class="text-2xl font-bold text-slate-800">${data.iqraBreakdown[i]}</div>
+                        </div>
+                    `).join('');
+
+                    // JUZ GRID
+                    const juzGrid = Array.from({length: 30}, (_, i) => i + 1).map(j => `
+                        <div class="bg-blue-50 p-2 rounded-lg border border-blue-100 text-center">
+                            <div class="text-[10px] text-blue-500 font-bold uppercase">Juz ${j}</div>
+                            <div class="text-lg font-bold text-slate-800">${data.juzBreakdown[j]}</div>
+                        </div>
+                    `).join('');
+
+                    analysisContent = `
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 animate-in fade-in slide-in-from-bottom-4">
+                            <!-- Total Card -->
+                            <div class="bg-white p-5 rounded-2xl shadow-sm border flex items-center justify-between">
+                                <div><p class="text-sm text-slate-500 font-medium">Jumlah Murid</p><h3 class="text-3xl font-bold text-slate-800">${data.total}</h3></div>
+                                <div class="bg-slate-100 p-3 rounded-xl text-slate-600"><i data-lucide="users" class="w-6 h-6"></i></div>
+                            </div>
+                            <!-- Iqra Card -->
+                            <div class="bg-white p-5 rounded-2xl shadow-sm border flex items-center justify-between">
+                                <div><p class="text-sm text-green-600 font-medium">Bacaan Iqra</p><h3 class="text-3xl font-bold text-slate-800">${data.iqraTotal}</h3></div>
+                                <div class="bg-green-50 p-3 rounded-xl text-green-600"><i data-lucide="book-open" class="w-6 h-6"></i></div>
+                            </div>
+                            <!-- Quran Card -->
+                            <div class="bg-white p-5 rounded-2xl shadow-sm border flex items-center justify-between">
+                                <div><p class="text-sm text-blue-600 font-medium">Al-Quran</p><h3 class="text-3xl font-bold text-slate-800">${data.quranTotal}</h3></div>
+                                <div class="bg-blue-50 p-3 rounded-xl text-blue-600"><i data-lucide="book" class="w-6 h-6"></i></div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-6 duration-700">
+                            <!-- Iqra Breakdown -->
+                            <div class="bg-white p-6 rounded-2xl shadow-sm border">
+                                <h3 class="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2"><i data-lucide="bar-chart-2" class="w-5 h-5 text-green-600"></i> Pecahan Iqra</h3>
+                                <div class="grid-iqra">${iqraGrid}</div>
+                            </div>
+                            
+                            <!-- Quran Breakdown -->
+                            <div class="bg-white p-6 rounded-2xl shadow-sm border">
+                                <h3 class="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2"><i data-lucide="pie-chart" class="w-5 h-5 text-blue-600"></i> Pecahan Juzuk</h3>
+                                <div class="grid-juz">${juzGrid}</div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                content = `
+                    <div class="flex flex-col h-full">
+                        <div class="bg-white p-4 rounded-2xl shadow-sm border mb-6 flex flex-wrap gap-3 items-center">
+                            <!-- Filters -->
+                            <div class="flex-1 min-w-[150px]">
+                                <label class="text-xs font-bold text-slate-500 ml-1">Kelas</label>
+                                <select onchange="setAnalysisFilter('class', this.value)" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="">Semua Kelas</option>
+                                    ${classes.map(c => `<option value="${c}" ${filter.class===c?'selected':''}>${c}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="w-32">
+                                <label class="text-xs font-bold text-slate-500 ml-1">Bulan</label>
+                                <select onchange="setAnalysisFilter('month', this.value)" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="">Terkini</option>
+                                    ${months.map((m,i) => `<option value="${i+1}" ${parseInt(filter.month)===i+1?'selected':''}>${m}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div class="w-24">
+                                <label class="text-xs font-bold text-slate-500 ml-1">Tahun</label>
+                                <select onchange="setAnalysisFilter('year', this.value)" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500">
+                                    ${years.map(y => `<option value="${y}" ${parseInt(filter.year)===y?'selected':''}>${y}</option>`).join('')}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="flex-1 overflow-y-auto pb-10">
+                            ${analysisContent}
+                        </div>
+                    </div>
+                `;
+
+            } else if (state.activeTab === 'guru') {
+                const rows = state.users.map((u, idx) => {
+                    const isProtected = u.role === 'admin';
+                    return `<tr class="border-b hover:bg-slate-50"><td class="p-4 text-center text-slate-500">${idx+1}</td><td class="p-4 font-medium">${u.nama}</td><td class="p-4"><span class="px-2 py-1 rounded text-xs uppercase ${u.role==='admin'?'bg-purple-100 text-purple-700':'bg-blue-50 text-blue-600'}">${u.role}</span></td><td class="p-4 font-mono text-slate-500">${u.ic_akhir || '-'}</td><td class="p-4 text-right flex justify-end gap-2">${!isProtected ? `<button onclick="handleDeleteRecord(event, '${USERS_COL}', '${u.id}')" class="text-red-500 hover:text-red-700 text-xs font-bold px-3 py-1 border border-red-200 rounded bg-red-50 hover:bg-red-100 transition-colors">Padam</button>` : ''}</td></tr>`;
+                }).join('');
+                content = `<div class="max-w-4xl mx-auto"><div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-bold text-slate-800">Senarai Guru</h2><div class="flex gap-2"><button onclick="handleDeleteAll('guru')" class="bg-red-100 text-red-600 px-4 py-2 rounded-lg text-sm font-bold flex gap-2 items-center"><i data-lucide="alert-octagon" class="w-4 h-4"></i> Padam Semua</button><button onclick="openModal('guru')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm flex gap-2 items-center"><i data-lucide="plus" class="w-4 h-4"></i> Tambah</button></div></div><div class="bg-white rounded-2xl shadow-sm border overflow-hidden"><table class="w-full text-left text-sm"><thead class="bg-slate-50 border-b"><tr><th class="p-4 w-10">#</th><th class="p-4">Nama</th><th class="p-4">Peranan</th><th class="p-4">Login</th><th class="p-4 text-right">Aksi</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+            } else if (state.activeTab === 'murid') {
+                const rows = getFilteredStudents().map((s, idx) => `<tr class="border-b hover:bg-slate-50"><td class="p-4 text-center text-slate-500">${idx+1}</td><td class="p-4 font-medium">${s.nama_murid}</td><td class="p-4"><span class="bg-slate-100 border px-2 py-0.5 rounded text-xs">${s.kelas}</span></td><td class="p-4 text-slate-600">${state.users.find(u => u.id === s.guru_tasmik_id)?.nama || '-'}</td><td class="p-4 text-xs text-slate-500">${s.last_iqra_level ? `Iqra ${s.last_iqra_level}` : (s.last_quran_page ? `Quran MS ${s.last_quran_page}` : '-')}</td><td class="p-4 text-right flex justify-end gap-2"><button onclick="openModal('murid', '${s.id}')" class="text-blue-500 hover:bg-blue-50 p-2"><i data-lucide="edit" class="w-4 h-4"></i></button><button onclick="handleDeleteRecord(event, '${STUDENTS_COL}', '${s.id}')" class="text-red-500 hover:text-red-700 text-xs font-bold px-3 py-1 border border-red-200 rounded bg-red-50 hover:bg-red-100 transition-colors">Padam</button></td></tr>`).join('');
+                content = `<div class="max-w-6xl mx-auto"><div class="bg-white p-4 rounded-2xl shadow-sm border mb-6 flex flex-wrap items-center gap-4"><div class="flex items-center gap-2 border rounded-lg px-3 py-2 bg-slate-50 flex-1"><i data-lucide="filter" class="w-4 h-4 text-slate-400"></i><select onchange="setAdminFilter(this.value)" class="bg-transparent outline-none text-sm w-full"><option value="">Semua Kelas</option>${getUniqueClasses().map(c => `<option value="${c}" ${state.filterClassAdmin===c?'selected':''}>${c}</option>`).join('')}</select></div><div class="flex items-center gap-2 border rounded-lg px-3 py-2 bg-slate-50 flex-1"><i data-lucide="search" class="w-4 h-4 text-slate-400"></i><input type="text" placeholder="Cari nama..." oninput="setSearchTerm(this.value)" class="bg-transparent outline-none text-sm w-full"/></div><button onclick="handleDeleteAll('murid')" class="bg-red-100 text-red-600 px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap flex gap-2 items-center"><i data-lucide="alert-octagon" class="w-4 h-4"></i> Padam Murid</button><button onclick="openModal('murid')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm whitespace-nowrap flex gap-2 items-center"><i data-lucide="plus" class="w-4 h-4"></i> Tambah</button></div><div class="bg-white rounded-2xl shadow-sm border overflow-hidden"><table class="w-full text-left text-sm"><thead class="bg-slate-50 border-b"><tr><th class="p-4 w-10">#</th><th class="p-4">Nama</th><th class="p-4">Kelas</th><th class="p-4">Guru Tasmik</th><th class="p-4">Terkini</th><th class="p-4 text-right">Aksi</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+            } else if (state.activeTab === 'import') {
+                content = `<div class="max-w-2xl mx-auto text-center bg-white p-10 rounded-2xl shadow-sm border"><div class="bg-blue-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><i data-lucide="upload" class="w-8 h-8 text-blue-600"></i></div><h3 class="font-bold text-xl mb-2">Import CSV Murid</h3><p class="text-slate-500 mb-8 text-sm">Format CSV: <code>nama,kelas,nama_guru</code></p><div class="flex flex-col gap-4"><label class="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-bold inline-flex items-center justify-center gap-2 shadow-lg active:scale-95"><i data-lucide="upload" class="w-5 h-5"></i> Pilih Fail CSV <input type="file" accept=".csv" class="hidden" onchange="handleCSVImport(this)"/></label><div class="border-t pt-6 mt-2"><h4 class="font-bold text-slate-700 mb-3 flex items-center justify-center gap-2"><i data-lucide="sheet" class="w-4 h-4"></i> Integrasi Google Sheet</h4><input type="text" id="sheetUrl" class="w-full p-3 border rounded-xl text-sm mb-3" placeholder="URL Web App Google Script..." value="${state.config.url||''}"><button onclick="saveSheetUrl()" class="bg-green-600 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-green-700 w-full">Simpan URL Sheet</button></div></div></div>`;
+            }
+
+            return `<div class="min-h-screen bg-slate-100 font-sans flex flex-col md:flex-row h-full"><div class="bg-white w-full md:w-64 flex-shrink-0 border-r z-10 shadow-sm flex flex-col"><div class="p-6 border-b"><h1 class="font-bold text-xl text-blue-600 flex items-center gap-2"><i data-lucide="database" class="w-6 h-6"></i> Admin</h1></div><nav class="p-2 space-y-1 flex-1">${navItems}</nav><div class="p-4 border-t space-y-2"><button onclick="handleLogout()" class="flex w-full items-center gap-3 p-3 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-xl"><i data-lucide="log-out" class="w-4 h-4"></i> Keluar</button><button onclick="handleSystemReset()" class="flex w-full items-center gap-3 p-3 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-xl"><i data-lucide="refresh-cw" class="w-4 h-4"></i> Reset Sistem</button></div></div><main class="flex-1 p-4 md:p-8 overflow-y-auto relative h-full">${content}</main></div>`;
+        }
+
+        function setupEventListeners() { document.getElementById('loginForm')?.addEventListener('submit', handleLogin); }
+        initListeners();
+    </script>
+</body>
+</html>
