@@ -3,621 +3,1807 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>eTasmik SK Masjid Tanah (Integrasi)</title>
+    <title>Portal Digitalisasi Panitia Pendidikan Islam</title>
     
-    <!-- Tailwind CSS -->
+    <!-- 1. Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- 2. Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <!-- 3. React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- 4. Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
-        body { font-family: 'Inter', sans-serif; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes fade-in-up {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-up { animation: fade-in-up 0.3s ease-out forwards; }
+        /* Modal Animation */
+        @keyframes scale-in {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .animate-scale-in { animation: scale-in 0.2s ease-out forwards; }
         
-        .loader { border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top: 2px solid #ffffff; width: 16px; height: 16px; -webkit-animation: spin 0.8s linear infinite; animation: spin 0.8s linear infinite; }
-        .loader-dark { border: 3px solid #f3f3f3; border-radius: 50%; border-top: 3px solid #3498db; width: 24px; height: 24px; -webkit-animation: spin 0.8s linear infinite; animation: spin 0.8s linear infinite; }
-        @-webkit-keyframes spin { 0% { -webkit-transform: rotate(0deg); } 100% { -webkit-transform: rotate(360deg); } }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        
-        .grid-iqra { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 1rem; }
-        .grid-juz { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 0.5rem; }
+        /* Sidebar Transition */
+        .sidebar-transition { transition: transform 0.3s ease-in-out; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 h-screen overflow-hidden flex flex-col">
+<body class="bg-gray-50 text-gray-800">
 
-    <!-- Toast Container -->
-    <div id="toast-container" class="fixed top-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none"></div>
+    <div id="root"></div>
 
-    <!-- App Container -->
-    <div id="app" class="flex-1 flex flex-col h-full overflow-hidden relative">
-        <div class="flex h-screen items-center justify-center flex-col text-slate-500">
-            <div class="loader-dark mb-4"></div>
-            <p>Memuatkan Sistem...</p>
-        </div>
-    </div>
-
-    <!-- Modal Container (General) -->
-    <div id="modal-overlay" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
-        <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div class="flex justify-between items-center p-4 border-b bg-slate-50">
-                <h3 id="modal-title" class="font-bold text-lg text-slate-800">Tajuk Modal</h3>
-                <button onclick="closeModal()" class="p-2 hover:bg-slate-200 rounded-full transition-colors">
-                    <i data-lucide="x" class="w-5 h-5 text-slate-500"></i>
-                </button>
-            </div>
-            <div id="modal-content" class="p-6 overflow-y-auto"></div>
-        </div>
-    </div>
-
-    <!-- Confirmation Modal (Specific for Delete) -->
-    <div id="confirm-modal" class="fixed inset-0 bg-black/60 z-[60] hidden flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-        <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center transform transition-all scale-100 border border-slate-100">
-            <div class="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
-                <i data-lucide="alert-triangle" class="w-8 h-8"></i>
-            </div>
-            <h3 class="text-xl font-bold text-slate-800 mb-2">Pengesahan Padam</h3>
-            <p id="confirm-message" class="text-slate-600 mb-8 text-sm leading-relaxed">Adakah anda pasti?</p>
-            <div class="flex gap-3 justify-center">
-                <button onclick="closeConfirmModal()" class="flex-1 px-4 py-3 text-slate-600 hover:bg-slate-100 rounded-xl font-bold transition-colors border border-slate-200">Batal</button>
-                <button id="confirm-btn-action" class="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition-transform active:scale-95 flex items-center justify-center gap-2">
-                    <i data-lucide="trash-2" class="w-4 h-4"></i> Padam
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Firebase & Logic Script -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, deleteDoc, query, where, onSnapshot, serverTimestamp, writeBatch, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-        // 1. CONFIGURATION
+    <script type="text/babel">
+        // --- KONFIGURASI FIREBASE ---
         const firebaseConfig = {
-            apiKey: "AIzaSyDgwjifR8PWZiBLmbjCTzVhY_t5AMMVT0E",
-            authDomain: "etasmik-4df92.firebaseapp.com",
-            databaseURL: "https://etasmik-4df92-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "etasmik-4df92",
-            storageBucket: "etasmik-4df92.firebasestorage.app",
-            messagingSenderId: "49506975458",
-            appId: "1:49506975458:web:c7d3b9f2be140e0cf628bb",
-            measurementId: "G-RC47MRQ5SP"
+            apiKey: "AIzaSyAr8-eH0oATCdR59srDYTHLM7F5CBOhwqY",
+            authDomain: "etasmik-v2.firebaseapp.com",
+            projectId: "etasmik-v2",
+            storageBucket: "etasmik-v2.firebasestorage.app",
+            messagingSenderId: "874131072411",
+            appId: "1:874131072411:web:1f601643585fa1f6b7ed3e",
+            measurementId: "G-WFB0RGZ99L"
         };
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-
-        const USERS_COL = 'users';
-        const STUDENTS_COL = 'students';
-        const RECORDS_COL = 'records';
-        const CONFIG_COL = 'config';
-
-        // 2. STATE
-        const state = {
-            view: 'login',
-            user: null,
-            users: [],
-            students: [],
-            config: { url: '' },
-            loginMode: 'guru',
-            activeTab: 'analisis',
-            selectedClass: '',
-            searchTerm: '',
-            filterClassAdmin: '',
-            selectedStudentIds: [],
-            studentHistory: null,
-            localEdits: {},
-            // NEW: Analysis State
-            analysis: {
-                loading: false,
-                data: null,
-                filter: {
-                    class: '',
-                    month: '', // 1-12
-                    year: new Date().getFullYear().toString()
-                }
-            }
-        };
-
-        // 3. LISTENERS
-        function initListeners() {
-            onSnapshot(collection(db, USERS_COL), (snap) => {
-                state.users = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.nama||'').localeCompare(b.nama||''));
-                if (state.view !== 'admin-dash' || state.activeTab !== 'analisis') renderApp();
-            }, (err) => console.error(err));
-
-            onSnapshot(collection(db, STUDENTS_COL), (snap) => {
-                state.students = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                // Only auto re-render if NOT analyzing with filters (which uses snapshot of records)
-                if (state.view !== 'admin-dash' || state.activeTab !== 'analisis') renderApp();
-                else if (state.activeTab === 'analisis' && !state.analysis.filter.month) {
-                    // If simple current view, refresh
-                    window.runAnalysis();
-                }
-            });
-
-            onSnapshot(doc(db, CONFIG_COL, 'settings'), (snap) => {
-                if(snap.exists()) state.config = snap.data();
-            });
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
         }
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const googleProvider = new firebase.auth.GoogleAuthProvider();
 
-        // 4. HELPER FUNCTIONS
-        const juzukStartPages = [1, 22, 42, 62, 82, 102, 122, 142, 162, 182, 202, 222, 242, 262, 282, 302, 322, 342, 362, 382, 402, 422, 442, 462, 482, 502, 522, 542, 562, 582, 605];
-        window.getJuzukByPage = (page) => {
+        // --- DATA HADIS ---
+        const HADIS_DATA = [
+            { text: "Sebaik-baik kamu adalah orang yang belajar Al-Qur'an dan mengajarkannya.", source: "Riwayat Al-Bukhari" },
+            { text: "Orang yang mahir membaca Al-Qur'an akan bersama para malaikat yang mulia lagi taat.", source: "Riwayat Muslim" },
+            { text: "Bacalah Al-Qur'an, kerana sesungguhnya ia akan datang pada hari kiamat sebagai pemberi syafaat kepada pembacanya.", source: "Riwayat Muslim" },
+            { text: "Siapa yang menempuh jalan untuk mencari ilmu, maka Allah akan mudahkan baginya jalan menuju syurga.", source: "Riwayat Muslim" },
+            { text: "Tuntutlah ilmu dari buaian hingga ke liang lahad.", source: "Kata Hikmah" }
+        ];
+
+        // --- IKON SVG ---
+        const IconBase = ({ children, size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>
+        );
+        const Book = (props) => <IconBase {...props}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></IconBase>;
+        const Users = (props) => <IconBase {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></IconBase>;
+        const LogOut = (props) => <IconBase {...props}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></IconBase>;
+        const ChevronRight = (props) => <IconBase {...props}><polyline points="9 18 15 12 9 6"/></IconBase>;
+        const Save = (props) => <IconBase {...props}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></IconBase>;
+        const History = (props) => <IconBase {...props}><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"/><path d="M3 3v9h9"/><path d="M12 7v5l4 2"/></IconBase>;
+        const Trash2 = (props) => <IconBase {...props}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></IconBase>;
+        const Search = (props) => <IconBase {...props}><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></IconBase>;
+        const FileText = (props) => <IconBase {...props}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><polyline points="10 9 9 9 8 9"/></IconBase>;
+        const CheckCircle = (props) => <IconBase {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></IconBase>;
+        const Award = (props) => <IconBase {...props}><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></IconBase>;
+        const UserPlus = (props) => <IconBase {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" x2="20" y1="8" y2="14"/><line x1="23" x2="17" y1="11" y2="11"/></IconBase>;
+        const Upload = (props) => <IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></IconBase>;
+        const Download = (props) => <IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></IconBase>;
+        const Shield = (props) => <IconBase {...props}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></IconBase>;
+        const Lock = (props) => <IconBase {...props}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></IconBase>;
+        const Plus = (props) => <IconBase {...props}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></IconBase>;
+        const Edit2 = (props) => <IconBase {...props}><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></IconBase>;
+        const ArrowLeft = (props) => <IconBase {...props}><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></IconBase>;
+        const BarChart2 = (props) => <IconBase {...props}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></IconBase>;
+        const X = (props) => <IconBase {...props}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBase>;
+        const Home = (props) => <IconBase {...props}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></IconBase>;
+        const Clipboard = (props) => <IconBase {...props}><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></IconBase>;
+        const Star = (props) => <IconBase {...props}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></IconBase>;
+        const Database = (props) => <IconBase {...props}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></IconBase>;
+        const Menu = (props) => <IconBase {...props}><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></IconBase>;
+        const Settings = (props) => <IconBase {...props}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 0 2.83l.06.06a1.65 1.65 0 0 0 .33-1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></IconBase>;
+        const BookOpen = (props) => <IconBase {...props}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></IconBase>;
+        const Printer = (props) => <IconBase {...props}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></IconBase>;
+
+        const LEVELS = ['Iqra 1', 'Iqra 2', 'Iqra 3', 'Iqra 4', 'Iqra 5', 'Iqra 6', 'Al-Quran'];
+        const RATINGS = ['Lancar', 'Sederhana', 'Perlu Bimbingan'];
+        const TP_LEVELS = ['TP1', 'TP2', 'TP3', 'TP4', 'TP5', 'TP6'];
+        const HASIL_KERJA_LEVELS = ['Lemah', 'Baik', 'Cemerlang'];
+
+        // --- PENGIRAAN JUZUK TEPAT ---
+        const getExactJuzuk = (page) => {
             const p = parseInt(page);
             if (isNaN(p) || p < 1) return '-';
-            if (p > 604) return 'Tamat';
-            for (let i = 0; i < 30; i++) {
-                if (p >= juzukStartPages[i] && p < juzukStartPages[i+1]) return i + 1;
+            const juzukStart = [
+                0, 1, 22, 42, 62, 82, 102, 122, 142, 162, 182, 
+                202, 222, 242, 262, 282, 302, 322, 342, 362, 382, 
+                402, 422, 442, 462, 482, 502, 522, 542, 562, 582
+            ];
+            for (let i = 30; i >= 1; i--) {
+                if (p >= juzukStart[i]) return i;
             }
-            return 30;
+            return 1;
         };
 
-        function getFilteredStudents() {
-            let list = state.students;
-            if (state.view === 'teacher-dash' && state.user) {
-                list = list.filter(s => s.guru_tasmik_id === state.user.id);
-                if (state.selectedClass) list = list.filter(s => s.kelas === state.selectedClass);
-            }
-            if (state.view === 'admin-dash') {
-                 if (state.activeTab === 'murid' && state.filterClassAdmin) {
-                     list = list.filter(s => s.kelas === state.filterClassAdmin);
-                 }
-            }
-            if (state.searchTerm) {
-                list = list.filter(s => s.nama_murid.toLowerCase().includes(state.searchTerm.toLowerCase()));
-            }
-            return list.sort((a,b) => a.nama_murid.localeCompare(b.nama_murid));
-        }
+        // --- KOMPONEN UI ---
+        const Card = ({ children, className = "", onClick }) => (
+            <div onClick={onClick} className={`bg-white rounded-xl shadow-sm border border-emerald-100 p-4 ${onClick ? 'cursor-pointer hover:shadow-md hover:border-emerald-300 transition-all active:scale-95' : ''} ${className}`}>{children}</div>
+        );
 
-        function getUniqueClasses() {
-            // Global unique classes for dropdowns
-            return [...new Set(state.students.map(s => s.kelas).filter(Boolean))].sort();
-        }
+        const Button = ({ children, onClick, variant = 'primary', className = "", disabled = false, ...props }) => {
+            const baseStyle = "px-4 py-2 rounded-lg font-medium transition-all active:scale-95 flex items-center justify-center gap-2";
+            const variants = {
+                primary: "bg-emerald-600 text-white hover:bg-emerald-700 shadow-md shadow-emerald-200",
+                secondary: "bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50",
+                danger: "bg-red-50 text-red-600 border border-red-100 hover:bg-red-100",
+                ghost: "bg-transparent text-gray-500 hover:bg-gray-100",
+                google: "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50",
+                sidebar: "w-full justify-start text-emerald-100 hover:bg-emerald-700 hover:text-white"
+            };
+            return (
+                <button onClick={onClick} disabled={disabled} className={`${baseStyle} ${variants[variant]} ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`} {...props}>
+                    {children}
+                </button>
+            );
+        };
 
-        window.sendToGoogleSheet = async (data) => {
-            if (!state.config.url) return;
+        const Badge = ({ status }) => {
+            const styles = {
+                'Lancar': 'bg-green-100 text-green-700',
+                'Sederhana': 'bg-yellow-100 text-yellow-700',
+                'Perlu Bimbingan': 'bg-red-100 text-red-700',
+            };
+            return (
+                <span className={`text-xs px-2 py-1 rounded-full font-semibold ${styles[status] || 'bg-gray-100 text-gray-600'}`}>
+                    {status}
+                </span>
+            );
+        };
+
+        const KhatamBadge = () => (
+            <span className="flex items-center gap-1 bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full font-bold border border-yellow-200">
+                <Award size={12} className="fill-yellow-500 text-yellow-600" /> KHATAM
+            </span>
+        );
+
+        const DailyHadis = () => {
+            const [hadis, setHadis] = React.useState(HADIS_DATA[0]);
+            
+            React.useEffect(() => {
+                const random = HADIS_DATA[Math.floor(Math.random() * HADIS_DATA.length)];
+                setHadis(random);
+            }, []);
+
+            return (
+                <div className="bg-gradient-to-r from-emerald-800 to-teal-900 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden mb-8">
+                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                        <BookOpen size={100} />
+                    </div>
+                    <div className="relative z-10">
+                        <h3 className="text-emerald-300 text-xs font-bold tracking-widest uppercase mb-2">Mutiara Kata / Hadis</h3>
+                        <p className="text-xl md:text-2xl font-serif leading-relaxed mb-4">"{hadis.text}"</p>
+                        <p className="text-sm text-emerald-200 font-medium border-l-2 border-emerald-500 pl-3">{hadis.source}</p>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- NEW: KOMPONEN CARTA/GRAF BAR (Analisis Grafik) ---
+        const StatsChart = ({ stats }) => {
+            const iqraLabels = ['Iqra 1', 'Iqra 2', 'Iqra 3', 'Iqra 4', 'Iqra 5', 'Iqra 6'];
+            const iqraData = iqraLabels.map(l => ({ label: l, value: stats.iqra[l] || 0 }));
+            
+            const quranLabels = Object.keys(stats.quran);
+            const quranData = quranLabels.map(l => ({ label: `Juz ${l}`, value: stats.quran[l] || 0 }));
+
+            const maxValueIqra = Math.max(...iqraData.map(d => d.value), 1);
+            const maxValueQuran = Math.max(...quranData.map(d => d.value), 1);
+
+            const renderBar = (item, max, colorClass) => (
+                <div key={item.label} className="flex flex-col items-center gap-1 flex-1 group h-full justify-end">
+                    <div className="w-full relative flex items-end justify-center" style={{height: '100px'}}>
+                        <div 
+                            className={`w-full ${colorClass} rounded-t-sm transition-all duration-1000 ease-out group-hover:opacity-80 relative flex justify-center`} 
+                            style={{ height: `${(item.value / max) * 100}%` }}
+                        >
+                            <span className="absolute -top-5 text-xs font-bold text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity">{item.value}</span>
+                        </div>
+                    </div>
+                    <span className="text-[9px] md:text-[10px] text-gray-500 font-medium text-center leading-tight h-6 flex items-center justify-center">{item.label.replace('Iqra', 'Iq').replace('Juz', '')}</span>
+                </div>
+            );
+
+            return (
+                <div className="grid md:grid-cols-2 gap-6 mb-6 animate-fade-in-up">
+                    <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                        <h4 className="font-bold text-blue-700 mb-4 text-sm flex items-center gap-2"><BarChart2 size={16}/> Taburan Murid Iqra'</h4>
+                        <div className="flex items-end justify-between gap-1 h-32">
+                            {iqraData.map(d => renderBar(d, maxValueIqra, 'bg-blue-500'))}
+                        </div>
+                    </div>
+                    <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                        <h4 className="font-bold text-emerald-700 mb-4 text-sm flex items-center gap-2"><BookOpen size={16}/> Taburan Murid Al-Quran</h4>
+                        <div className="flex items-end justify-between gap-1 h-32">
+                            {quranData.map(d => renderBar(d, maxValueQuran, 'bg-emerald-500'))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- GOOGLE SHEETS SYNC HELPER ---
+        const syncToGoogleSheets = async (data, settings) => {
+            if (!settings || !settings.googleScriptUrl) return;
             try {
-                await fetch(state.config.url, {
+                await fetch(settings.googleScriptUrl, {
                     method: 'POST',
                     mode: 'no-cors',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
-            } catch (e) { console.error("Sheet Error:", e); }
+                console.log("Data dihantar ke Google Sheets (Background)");
+            } catch (error) {
+                console.error("Ralat Sync Google Sheets:", error);
+            }
+        };
+
+        // --- MODAL TAMBAH MURID ---
+        const AddStudentModal = ({ onClose, onSave, existingClasses }) => {
+            const [name, setName] = React.useState('');
+            const [kelas, setKelas] = React.useState('');
+            
+            const handleSubmit = () => {
+                if(!name || !kelas) return alert("Sila isi nama dan kelas.");
+                onSave(name, kelas);
+            }
+
+            return (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-up backdrop-blur-sm" onClick={e => onClose()}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-scale-in" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-bold text-emerald-800 flex items-center gap-2"><UserPlus size={20}/> Tambah Murid Manual</h3>
+                            <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-1 text-gray-700">Nama Murid</label>
+                                <input type="text" className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" value={name} onChange={e => setName(e.target.value)} placeholder="Nama Penuh" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1 text-gray-700">Kelas</label>
+                                <input list="classes" type="text" className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" value={kelas} onChange={e => setKelas(e.target.value)} placeholder="Pilih atau taip baru..." />
+                                <datalist id="classes">
+                                    {existingClasses.map(c => <option key={c} value={c} />)}
+                                </datalist>
+                                <p className="text-[10px] text-gray-400 mt-1">Anda boleh pilih kelas sedia ada atau taip nama kelas baru.</p>
+                            </div>
+                            <div className="flex justify-end gap-2 mt-6 pt-4 border-t">
+                                <Button variant="ghost" onClick={onClose}>Batal</Button>
+                                <Button onClick={handleSubmit}>Simpan Murid</Button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )
         }
 
-        window.showToast = (message, type='success') => {
-            const container = document.getElementById('toast-container');
-            const toast = document.createElement('div');
-            toast.className = "bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 min-w-[300px] transform transition-all duration-300 translate-x-full opacity-0 pointer-events-auto";
-            toast.innerHTML = `<i data-lucide="check-circle" class="w-5 h-5"></i><span class="font-medium text-sm">${message}</span>`;
-            container.appendChild(toast);
-            lucide.createIcons();
-            requestAnimationFrame(() => toast.classList.remove('translate-x-full', 'opacity-0'));
-            setTimeout(() => { toast.classList.add('translate-x-full', 'opacity-0'); setTimeout(() => toast.remove(), 300); }, 3000);
+        // --- MODAL ANALISIS ---
+        const AnalysisModal = ({ title, data, onClose, onSelectStudent }) => {
+            return (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-up backdrop-blur-sm" onClick={onClose}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col animate-scale-in" onClick={e => e.stopPropagation()}>
+                        <div className="p-5 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl">
+                            <div>
+                                <h3 className="font-bold text-lg text-gray-800">{title}</h3>
+                                <p className="text-xs text-gray-500">{data.length} murid dijumpai</p>
+                            </div>
+                            <button onClick={onClose} className="bg-gray-200 hover:bg-gray-300 p-2 rounded-full transition-colors"><X size={18}/></button>
+                        </div>
+                        <div className="overflow-y-auto p-4 space-y-2 flex-1 bg-gray-50/50">
+                            {data.length === 0 ? <p className="text-center text-gray-400 py-10 italic">Tiada murid dalam kategori ini.</p> : 
+                            data.map(s => (
+                                <div key={s.id} onClick={() => onSelectStudent(s)} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm hover:shadow-md hover:border-emerald-300 cursor-pointer flex justify-between items-center group transition-all">
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${s.level === 'Al-Quran' ? 'bg-emerald-500' : 'bg-blue-400'}`}>{s.name.charAt(0)}</div>
+                                        <div>
+                                            <div className="flex items-center gap-1">
+                                                <p className="font-bold text-sm text-gray-800 group-hover:text-emerald-700">{s.name}</p>
+                                                {s.isKhatam && <Award size={12} className="text-yellow-500 fill-yellow-400"/>}
+                                            </div>
+                                            <p className="text-[10px] text-gray-500">{s.class} • {s.level} {s.level === 'Al-Quran' && `(Juz ${getExactJuzuk(s.page)})`}</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-emerald-600 opacity-0 group-hover:opacity-100 transform translate-x-2 group-hover:translate-x-0 transition-all">
+                                        <ChevronRight size={16} />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
         };
 
-        // 5. CORE LOGIC & GLOBAL FUNCTIONS
-        window.handleLocalEdit = (studentId, field, value) => {
-            if (!state.localEdits[studentId]) state.localEdits[studentId] = {};
-            state.localEdits[studentId][field] = value;
+        // --- PBD EDIT MODAL (FOR MOBILE) ---
+        const PBDEditModal = ({ student, onClose, onUpdate }) => {
+            const pbd = student.pbd_scores || {};
+            return (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 animate-fade-in-up backdrop-blur-sm" onClick={onClose}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto animate-scale-in" onClick={e => e.stopPropagation()}>
+                        <div className="p-5 border-b flex justify-between items-center bg-emerald-600 rounded-t-2xl text-white">
+                            <div>
+                                <h3 className="font-bold text-lg">{student.name}</h3>
+                                <p className="text-xs text-emerald-100">{student.class} • {student.level}</p>
+                            </div>
+                            <button onClick={onClose} className="bg-white/20 hover:bg-white/30 p-2 rounded-full"><X size={18}/></button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            {['aq_quran', 'akidah', 'ibadah', 'sirah', 'adab', 'jawi'].map(field => (
+                                <div key={field} className="flex items-center justify-between border-b pb-2">
+                                    <label className="font-medium text-gray-700 capitalize">{field.replace('_', ' ')}</label>
+                                    <select 
+                                        className="p-2 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-emerald-500 min-w-[100px]"
+                                        value={pbd[field] || ''}
+                                        onChange={(e) => onUpdate(student.id, field, e.target.value)}
+                                    >
+                                        <option value="">-</option>
+                                        {TP_LEVELS.map(tp => <option key={tp} value={tp}>{tp}</option>)}
+                                    </select>
+                                </div>
+                            ))}
+                            <div className="flex items-center justify-between border-b pb-2">
+                                <label className="font-medium text-gray-700 capitalize">Hasil Kerja</label>
+                                <select 
+                                    className="p-2 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-emerald-500 min-w-[100px]"
+                                    value={pbd['hasil_kerja'] || ''}
+                                    onChange={(e) => onUpdate(student.id, 'hasil_kerja', e.target.value)}
+                                >
+                                    <option value="">-</option>
+                                    {HASIL_KERJA_LEVELS.map(val => <option key={val} value={val}>{val}</option>)}
+                                </select>
+                            </div>
+                            <div className="flex items-center justify-between pt-2">
+                                <label className="font-bold text-blue-700 capitalize">Keseluruhan</label>
+                                <select 
+                                    className="p-2 border border-blue-300 rounded-lg bg-blue-50 focus:ring-2 focus:ring-blue-500 min-w-[100px] font-bold text-blue-800"
+                                    value={pbd['keseluruhan'] || ''}
+                                    onChange={(e) => onUpdate(student.id, 'keseluruhan', e.target.value)}
+                                >
+                                    <option value="">-</option>
+                                    {TP_LEVELS.map(tp => <option key={tp} value={tp}>{tp}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded-b-2xl">
+                             <Button onClick={onClose} className="w-full">Selesai</Button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const { useState, useEffect, useRef, useMemo } = React;
+
+        // --- KOMPONEN DASHBOARD (DIPINDAHKAN KELUAR) ---
+        const Dashboard = ({ 
+            currentUser, 
+            students, 
+            searchTerm, 
+            setSearchTerm, 
+            filterClass, 
+            setFilterClass, 
+            assignedClass, 
+            setAssignedClass, 
+            myClasses, 
+            analysisStats, 
+            setView, 
+            setSelectedStudent, 
+            handleDeleteHalaqah, 
+            handleDeleteStudent,
+            uniqueClasses
+        }) => {
+            const [analysisModal, setAnalysisModal] = useState(null); 
+            // Filter baseSubset mengikut kelas yang dipilih untuk tujuan analisis
+            const baseSubset = useMemo(() => {
+                if (currentUser.role === 'admin') {
+                    return students.filter(s => filterClass === 'Semua' || s.class === filterClass);
+                } else {
+                    if (assignedClass) return students.filter(s => s.class === assignedClass);
+                    return students.filter(s => s.assignedTeacherEmail === currentUser.email);
+                }
+            }, [students, filterClass, assignedClass, currentUser]);
+            
+            const filteredStudents = useMemo(() => {
+                    if (currentUser.role === 'admin') {
+                    return students.filter(s => {
+                        const matchName = s.name.toLowerCase().includes(searchTerm.toLowerCase());
+                        const matchClass = filterClass === 'Semua' || s.class === filterClass;
+                        return matchName && matchClass;
+                    });
+                } else {
+                    if (!assignedClass) return [];
+                    return students.filter(s => 
+                        s.assignedTeacherEmail === currentUser.email && 
+                        s.class === assignedClass &&
+                        s.name.toLowerCase().includes(searchTerm.toLowerCase())
+                    );
+                }
+            }, [students, currentUser, filterClass, searchTerm, assignedClass]);
+
+            const handleShowAnalysis = (type, param) => {
+                let list = [];
+                let title = '';
+                // Gunakan baseSubset (yang sudah ditapis ikut kelas) untuk senarai modal
+                if (type === 'total') { list = baseSubset; title = `Semua Murid`; }
+                else if (type === 'iqra_total') { list = baseSubset.filter(s => s.level.startsWith('Iqra')); title = 'Semua Murid Iqra'; }
+                else if (type === 'quran_total') { list = baseSubset.filter(s => s.level === 'Al-Quran'); title = 'Semua Murid Al-Quran'; }
+                else if (type === 'khatam') { list = baseSubset.filter(s => s.isKhatam); title = 'Murid Telah Khatam'; }
+                else if (type === 'iqra_level') { list = baseSubset.filter(s => s.level === param); title = `Murid ${param}`; }
+                else if (type === 'quran_juz') {
+                    const [start, end] = param.split('-').map(Number);
+                    list = baseSubset.filter(s => {
+                        if (s.level !== 'Al-Quran') return false;
+                        const j = getExactJuzuk(s.page);
+                        return typeof j === 'number' && j >= start && j <= end;
+                    });
+                    title = `Murid Juzuk ${param}`;
+                }
+                setAnalysisModal({ title, students: list });
+            };
+
+            const HalaqahGrid = ({ onClickClass }) => (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+                    {myClasses.map(className => (
+                        <div key={className} className="relative group">
+                            <div onClick={() => onClickClass(className)} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:border-emerald-300 hover:shadow-md cursor-pointer transition-all flex justify-between items-center">
+                                <div><h3 className="font-bold text-lg text-gray-800">{className}</h3><p className="text-sm text-gray-500">{students.filter(s => s.class === className && s.assignedTeacherEmail === currentUser.email).length} Murid</p></div>
+                                <div className="bg-emerald-50 p-2 rounded-full group-hover:bg-emerald-100 transition-colors"><ChevronRight className="text-emerald-600" /></div>
+                            </div>
+                            <button onClick={(e) => { e.stopPropagation(); handleDeleteHalaqah(className); }} className="absolute top-4 right-4 text-gray-300 hover:text-red-500 p-2 bg-white rounded-full hover:bg-red-50 transition-colors z-10" title="Padam Halaqah Ini"><Trash2 size={16} /></button>
+                        </div>
+                    ))}
+                </div>
+            );
+
+            // VIEW: HALAQAH SELECTION (TEACHER OVERVIEW)
+            if (currentUser.role === 'teacher' && !assignedClass) {
+                return (
+                    <div className="p-4 max-w-4xl mx-auto">
+                        <div className="flex justify-between items-end mb-4">
+                            <h2 className="text-xl font-bold text-gray-800">Halaqah Tasmik Anda</h2>
+                            <Button onClick={() => setView('setup_halaqah')} className="text-sm px-4 py-2"><Plus size={16}/> Tambah Halaqah</Button>
+                        </div>
+                        
+                        {/* ANALISIS RINGKAS UNTUK GURU (OVERVIEW) */}
+                        <div className="mb-8">
+                             <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                                <h3 className="font-bold text-gray-700 flex items-center gap-2 mb-4"><BarChart2 size={18}/> Statistik Keseluruhan Pelajar Anda</h3>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                                    <Card onClick={() => handleShowAnalysis('iqra_total')} className="bg-blue-50 border border-blue-100 text-center cursor-pointer hover:bg-blue-50"><div className="text-2xl font-bold text-blue-600">{analysisStats.totalIqra}</div><div className="text-[10px] text-blue-400 font-bold uppercase">Total Iqra</div></Card>
+                                    <Card onClick={() => handleShowAnalysis('quran_total')} className="bg-emerald-50 border border-emerald-100 text-center cursor-pointer hover:bg-emerald-50"><div className="text-2xl font-bold text-emerald-600">{analysisStats.totalQuran}</div><div className="text-[10px] text-emerald-400 font-bold uppercase">Total Quran</div></Card>
+                                    <Card onClick={() => handleShowAnalysis('khatam')} className="bg-yellow-50 border border-yellow-100 text-center cursor-pointer hover:bg-yellow-50"><div className="text-2xl font-bold text-yellow-600">{analysisStats.khatam}</div><div className="text-[10px] text-yellow-500 font-bold uppercase">Khatam</div></Card>
+                                    <Card onClick={() => handleShowAnalysis('total')} className="bg-gray-50 border border-gray-200 text-center cursor-pointer hover:bg-gray-50"><div className="text-2xl font-bold text-gray-600">{analysisStats.total}</div><div className="text-[10px] text-gray-400 font-bold uppercase">Jumlah Murid</div></Card>
+                                </div>
+                                <StatsChart stats={analysisStats} />
+                            </div>
+                        </div>
+
+                        {myClasses.length === 0 ? (
+                            <div className="text-center py-12 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
+                                <Users size={48} className="mx-auto mb-2 opacity-20" />
+                                <p>Anda belum ada murid.</p>
+                                <p className="text-sm mt-1">Tekan "Tambah Halaqah" untuk mula.</p>
+                            </div>
+                        ) : (
+                            <HalaqahGrid onClickClass={(c) => setAssignedClass(c)} />
+                        )}
+                    </div>
+                );
+            }
+
+            // VIEW: STUDENT LIST (ADMIN & TEACHER DETAIL)
+            return (
+                <div className="p-4 max-w-4xl mx-auto">
+                    {analysisModal && <AnalysisModal title={analysisModal.title} data={analysisModal.students} onClose={() => setAnalysisModal(null)} onSelectStudent={(s) => { setAnalysisModal(null); setSelectedStudent(s); setView('student_detail'); }} />}
+                    
+                    {/* Header Controls Teacher */}
+                    {currentUser.role === 'teacher' && (
+                        <div className="bg-emerald-600 text-white p-3 rounded-lg mb-4 flex justify-between items-center shadow-md">
+                            <button onClick={() => setAssignedClass(null)} className="flex items-center gap-1 hover:underline"><ArrowLeft size={18}/> <span className="font-bold">{assignedClass}</span></button>
+                            <button onClick={() => setView('setup_halaqah')} className="bg-white/20 p-2 rounded-full hover:bg-white/30 text-xs flex items-center gap-1"><Edit2 size={16}/> <span className="hidden sm:inline">Edit</span></button>
+                        </div>
+                    )}
+
+                    {/* STATS SECTION (Shared: Admin & Teacher Class View) */}
+                    <div className="space-y-6 mb-8">
+                        {/* CLASS FILTER (GLOBAL FOR ADMIN) */}
+                        {currentUser.role === 'admin' && (
+                            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3 overflow-x-auto no-scrollbar">
+                                <span className="font-bold text-sm text-gray-700 whitespace-nowrap">Filter Kelas:</span>
+                                {['Semua', ...uniqueClasses].map(c => (
+                                    <button key={c} onClick={() => setFilterClass(c)} className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${filterClass === c ? 'bg-emerald-600 text-white shadow' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{c}</button>
+                                ))}
+                            </div>
+                        )}
+
+                        {currentUser.role === 'admin' && (
+                            <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="font-bold text-emerald-800 flex items-center gap-2"><Users size={18}/> Tugas Hakiki (Halaqah Saya)</h3>
+                                    <Button onClick={() => setView('setup_halaqah')} variant="secondary" className="text-xs py-1 px-3 bg-white">Setup Halaqah</Button>
+                                </div>
+                                {myClasses.length > 0 ? <HalaqahGrid onClickClass={(c) => setFilterClass(c)} /> : <p className="text-sm text-gray-500 italic">Anda belum memilih halaqah sendiri. Tekan Setup untuk mula.</p>}
+                            </div>
+                        )}
+
+                        {/* UNIVERSAL ANALYSIS CHART - VISIBLE TO BOTH ADMIN & TEACHER */}
+                        <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                            <div className="flex justify-between items-center mb-4 border-b pb-2">
+                                <h3 className="font-bold text-gray-700 flex items-center gap-2"><BarChart2 size={18}/> Analisis Data</h3>
+                                <span className="text-xs font-medium bg-gray-100 px-2 py-1 rounded">
+                                    {currentUser.role === 'admin' ? `Filter: ${filterClass}` : `Kelas: ${assignedClass || 'Semua'}`}
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                                <Card onClick={() => handleShowAnalysis('iqra_total')} className="bg-blue-50 border border-blue-100 text-center cursor-pointer hover:bg-blue-50"><div className="text-2xl font-bold text-blue-600">{analysisStats.totalIqra}</div><div className="text-[10px] text-blue-400 font-bold uppercase">Total Iqra</div></Card>
+                                <Card onClick={() => handleShowAnalysis('quran_total')} className="bg-emerald-50 border border-emerald-100 text-center cursor-pointer hover:bg-emerald-50"><div className="text-2xl font-bold text-emerald-600">{analysisStats.totalQuran}</div><div className="text-[10px] text-emerald-400 font-bold uppercase">Total Quran</div></Card>
+                                <Card onClick={() => handleShowAnalysis('khatam')} className="bg-yellow-50 border border-yellow-100 text-center cursor-pointer hover:bg-yellow-50"><div className="text-2xl font-bold text-yellow-600">{analysisStats.khatam}</div><div className="text-[10px] text-yellow-500 font-bold uppercase">Khatam</div></Card>
+                                <Card onClick={() => handleShowAnalysis('total')} className="bg-gray-50 border border-gray-200 text-center cursor-pointer hover:bg-gray-50"><div className="text-2xl font-bold text-gray-600">{analysisStats.total}</div><div className="text-[10px] text-gray-400 font-bold uppercase">Jumlah Murid</div></Card>
+                            </div>
+                            
+                            {/* GRAF DISINI - KELIHATAN UNTUK SEMUA */}
+                            <StatsChart stats={analysisStats} />
+                        </div>
+                    </div>
+
+                    {/* Student List */}
+                    <div className="bg-white p-4 rounded-xl shadow-sm mb-4 sticky top-0 z-10 border border-gray-100">
+                            <div className="relative mb-3">
+                            <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                            <input type="text" placeholder="Cari nama murid..." className="w-full pl-10 pr-4 py-2 bg-gray-50 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                        </div>
+                    </div>
+
+                        <div className="space-y-3 pb-20">
+                        {filteredStudents.length > 0 ? filteredStudents.map(student => (
+                            <div key={student.id} onClick={() => { setSelectedStudent(student); setView('student_detail'); }} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md cursor-pointer flex justify-between items-center relative overflow-hidden group">
+                                {student.isKhatam && <div className="absolute top-0 right-0 w-3 h-3 bg-yellow-400 rounded-bl-lg"></div>}
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold relative ${student.level === 'Al-Quran' ? 'bg-emerald-500' : 'bg-blue-400'}`}>{student.name.charAt(0)}</div>
+                                    <div>
+                                        <div className="flex items-center gap-2"><h4 className="font-bold text-gray-800">{student.name}</h4>{student.isKhatam && <KhatamBadge />}</div>
+                                        <div className="flex gap-2 items-center text-xs text-gray-500"><span>{student.class}</span><span>• {student.level} ({student.page})</span></div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <Badge status={student.status} />
+                                    {currentUser.role === 'admin' && <button onClick={(e) => { e.stopPropagation(); handleDeleteStudent(student.id, student.name); }} className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors" title="Padam Murid"><Trash2 size={18} /></button>}
+                                </div>
+                            </div>
+                        )) : (
+                            <div className="text-center py-12 text-gray-400"><Users size={48} className="mx-auto mb-2 opacity-20" /><p>Tiada murid dijumpai.</p></div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // --- PBD LIST COMPONENT ---
+        const PBDList = () => {
+            return null; // Placeholder
         };
         
-        // --- ANALYSIS LOGIC ---
-        window.setAnalysisFilter = (field, value) => {
-            state.analysis.filter[field] = value;
-            // Delay slightly to allow UI update before heavy calc if needed, though simple calc is fast
-            setTimeout(window.runAnalysis, 10);
+        // --- VIEW: PBD LIST (FULL CODE) ---
+        const PBDListScreen = ({ students, uniqueClasses, handleUpdatePBD }) => {
+            const [selectedClass, setSelectedClass] = useState(''); // Default kosong
+            const [editStudent, setEditStudent] = useState(null);
+            
+            const classStudents = useMemo(() => {
+                if (!selectedClass) return [];
+                return students.filter(s => s.class === selectedClass).sort((a,b) => a.name.localeCompare(b.name));
+            }, [students, selectedClass]);
+
+            const handlePrint = () => {
+                if(!selectedClass) return alert("Sila pilih kelas dahulu.");
+                const printWindow = window.open('', '', 'width=800,height=600');
+                const html = `
+                    <html>
+                    <head>
+                        <title>PBD - ${selectedClass}</title>
+                        <style>
+                            body { font-family: sans-serif; padding: 20px; }
+                            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                            th, td { border: 1px solid #000; padding: 8px; text-align: center; font-size: 12px; }
+                            th { background-color: #f0f0f0; }
+                            .text-left { text-align: left; }
+                            h1, h2 { text-align: center; margin: 0; }
+                            .header { margin-bottom: 20px; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header">
+                            <h1>Rekod Pentaksiran Bilik Darjah (PBD)</h1>
+                            <h2>Kelas: ${selectedClass}</h2>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Bil</th>
+                                    <th>Nama Murid</th>
+                                    <th>AQ</th>
+                                    <th>Akidah</th>
+                                    <th>Ibadah</th>
+                                    <th>Sirah</th>
+                                    <th>Adab</th>
+                                    <th>Jawi</th>
+                                    <th>Hasil Kerja</th>
+                                    <th>Keseluruhan</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${classStudents.map((s, i) => {
+                                    const pbd = s.pbd_scores || {};
+                                    return `
+                                        <tr>
+                                            <td>${i + 1}</td>
+                                            <td class="text-left">${s.name}</td>
+                                            <td>${pbd.aq_quran || '-'}</td>
+                                            <td>${pbd.akidah || '-'}</td>
+                                            <td>${pbd.ibadah || '-'}</td>
+                                            <td>${pbd.sirah || '-'}</td>
+                                            <td>${pbd.adab || '-'}</td>
+                                            <td>${pbd.jawi || '-'}</td>
+                                            <td>${pbd.hasil_kerja || '-'}</td>
+                                            <td>${pbd.keseluruhan || '-'}</td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                        <script>window.print();<\/script>
+                    </body>
+                    </html>
+                `;
+                printWindow.document.write(html);
+                printWindow.document.close();
+            };
+
+            const handleDownloadCSV = () => {
+                if(!selectedClass) return alert("Sila pilih kelas dahulu.");
+                let csvContent = "data:text/csv;charset=utf-8,Bil,Nama Murid,Kelas,AQ,Akidah,Ibadah,Sirah,Adab,Jawi,Hasil Kerja,Keseluruhan\n";
+                classStudents.forEach((s, index) => {
+                    const pbd = s.pbd_scores || {};
+                    csvContent += `${index+1},"${s.name}",${s.class},${pbd.aq_quran||''},${pbd.akidah||''},${pbd.ibadah||''},${pbd.sirah||''},${pbd.adab||''},${pbd.jawi||''},${pbd.hasil_kerja||''},${pbd.keseluruhan||''}\n`;
+                });
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `PBD_${selectedClass}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+            
+            return (
+                <div className="p-4 md:p-6 min-h-screen pb-20 overflow-x-hidden">
+                    {editStudent && <PBDEditModal student={editStudent} onClose={() => setEditStudent(null)} onUpdate={handleUpdatePBD} />}
+
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4 border-b pb-6">
+                        <div>
+                            <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2"><Clipboard className="text-blue-600"/> Pentaksiran Bilik Darjah</h2>
+                            <p className="text-sm text-gray-500 mb-2">Pilih kelas untuk melihat senarai dan mengisi PBD.</p>
+                            
+                            <div className="flex items-center gap-2">
+                                <span className="font-bold text-gray-700">Kelas:</span>
+                                <select 
+                                    className="border border-gray-300 rounded-lg p-2 bg-white shadow-sm min-w-[200px] outline-none focus:ring-2 focus:ring-blue-500" 
+                                    value={selectedClass} 
+                                    onChange={(e) => setSelectedClass(e.target.value)}
+                                >
+                                    <option value="">-- Sila Pilih Kelas --</option>
+                                    {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        {selectedClass && (
+                            <div className="flex gap-2">
+                                <button onClick={handleDownloadCSV} className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 shadow transition-all text-sm font-medium">
+                                    <Download size={16}/> CSV
+                                </button>
+                                <button onClick={handlePrint} className="flex items-center gap-2 bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900 shadow transition-all text-sm font-medium">
+                                    <Printer size={16} /> Cetak
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {!selectedClass ? (
+                        <div className="flex flex-col items-center justify-center py-20 text-gray-400 bg-white rounded-xl border border-dashed border-gray-300">
+                            <Clipboard size={64} className="mb-4 opacity-20"/>
+                            <p className="text-lg font-medium">Sila pilih kelas di atas untuk memaparkan senarai murid.</p>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Mobile View (List/Card) */}
+                            <div className="block md:hidden space-y-3">
+                                <p className="text-xs text-gray-500 italic mb-2">* Tekan nama murid untuk isi PBD</p>
+                                {classStudents.map(student => {
+                                    const pbd = student.pbd_scores || {};
+                                    return (
+                                        <div key={student.id} onClick={() => setEditStudent(student)} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center active:bg-gray-50">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold">{student.name.charAt(0)}</div>
+                                                <div>
+                                                    <h4 className="font-bold text-gray-800">{student.name}</h4>
+                                                    <p className="text-xs text-gray-500">{student.level} • {pbd.keseluruhan ? `TP${pbd.keseluruhan}` : 'Belum Isi'}</p>
+                                                </div>
+                                            </div>
+                                            <ChevronRight size={18} className="text-gray-400" />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Desktop View (Table) */}
+                            <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm text-left">
+                                        <thead className="bg-gray-50 text-gray-700 font-bold border-b">
+                                            <tr>
+                                                <th className="p-4 min-w-[200px] sticky left-0 bg-gray-50 z-10 shadow-r">Nama Murid</th>
+                                                <th className="p-4 min-w-[150px] bg-emerald-50 text-emerald-800">Tasmik</th>
+                                                <th className="p-4 min-w-[80px]">AQ</th>
+                                                <th className="p-4 min-w-[80px]">Akidah</th>
+                                                <th className="p-4 min-w-[80px]">Ibadah</th>
+                                                <th className="p-4 min-w-[80px]">Sirah</th>
+                                                <th className="p-4 min-w-[80px]">Adab</th>
+                                                <th className="p-4 min-w-[80px]">Jawi</th>
+                                                <th className="p-4 min-w-[100px]">Hasil Kerja</th>
+                                                <th className="p-4 min-w-[100px] bg-blue-50 text-blue-800 text-center">Keseluruhan</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {classStudents.map(student => {
+                                                const pbd = student.pbd_scores || {};
+                                                return (
+                                                    <tr key={student.id} className="hover:bg-gray-50 group">
+                                                        <td className="p-3 sticky left-0 bg-white group-hover:bg-gray-50 border-r z-10 font-medium text-gray-800">{student.name}</td>
+                                                        <td className="p-3 bg-emerald-50/30 text-emerald-700 font-medium text-xs">
+                                                            {student.level} <br/> <span className="text-[10px] text-gray-500">({student.status})</span>
+                                                        </td>
+                                                        {['aq_quran', 'akidah', 'ibadah', 'sirah', 'adab', 'jawi'].map(field => (
+                                                            <td key={field} className="p-2">
+                                                                <select 
+                                                                    className="w-full p-1 border rounded text-xs bg-white focus:ring-1 focus:ring-blue-500"
+                                                                    value={pbd[field] || ''}
+                                                                    onChange={(e) => handleUpdatePBD(student.id, field, e.target.value)}
+                                                                >
+                                                                    <option value="">-</option>
+                                                                    {TP_LEVELS.map(tp => <option key={tp} value={tp}>{tp}</option>)}
+                                                                </select>
+                                                            </td>
+                                                        ))}
+                                                        <td className="p-2">
+                                                            <select 
+                                                                className="w-full p-1 border rounded text-xs bg-white focus:ring-1 focus:ring-blue-500"
+                                                                value={pbd['hasil_kerja'] || ''}
+                                                                onChange={(e) => handleUpdatePBD(student.id, 'hasil_kerja', e.target.value)}
+                                                            >
+                                                                <option value="">-</option>
+                                                                {HASIL_KERJA_LEVELS.map(val => <option key={val} value={val}>{val}</option>)}
+                                                            </select>
+                                                        </td>
+                                                        <td className="p-2 bg-blue-50/30">
+                                                            <select 
+                                                                className="w-full p-1 border border-blue-200 rounded text-xs bg-white font-bold text-blue-700 text-center"
+                                                                value={pbd['keseluruhan'] || ''}
+                                                                onChange={(e) => handleUpdatePBD(student.id, 'keseluruhan', e.target.value)}
+                                                            >
+                                                                <option value="">-</option>
+                                                                {TP_LEVELS.map(tp => <option key={tp} value={tp}>{tp}</option>)}
+                                                            </select>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {classStudents.length === 0 && <div className="p-8 text-center text-gray-400 italic">Tiada murid dalam kelas ini.</div>}
+                            </div>
+                        </>
+                    )}
+                </div>
+            );
         };
 
-        window.runAnalysis = async () => {
-            state.analysis.loading = true;
-            renderApp(); // Show loading state in analysis tab
+        // --- VIEW: j-QAF ---
+        const JQAFHome = () => (
+            <div className="p-6 flex flex-col items-center justify-center min-h-[50vh] text-center">
+                <div className="bg-purple-100 p-6 rounded-full mb-4">
+                    <Star size={48} className="text-purple-600"/>
+                </div>
+                <h2 className="text-2xl font-bold text-gray-800">Modul j-QAF</h2>
+                <p className="text-gray-500 max-w-md mt-2">Fungsi ini sedang dibangunkan. Akan datang: Rekod Kem Cemerlang Jawi & Pemulihan Jawi.</p>
+            </div>
+        );
 
-            const { class: cls, month, year } = state.analysis.filter;
-            let dataset = [];
+        // --- ADMIN DATA PANEL (FULL CODE) ---
+        const AdminDataPanel = ({ students, analysisStats, teachersList, whitelist, appSettings, currentUser, setFilterClass, filterClass, uniqueClasses, addToWhitelist, removeUser, approveTeacher, handleSaveSettings, downloadAllStudents, handleImportStudents, setShowAddStudentModal, studentFileRef }) => {
+            if (currentUser.role !== 'admin') return <div className="p-6 text-red-500">Akses Ditolak.</div>;
+            
+            const pendingTeachers = teachersList.filter(t => t.role === 'pending');
+            const activeTeachers = teachersList.filter(t => t.role === 'teacher' || t.role === 'admin');
+            const [wlName, setWlName] = useState('');
+            const [wlEmail, setWlEmail] = useState('');
+            const [scriptUrl, setScriptUrl] = useState(appSettings.googleScriptUrl || '');
 
-            try {
-                if (!month) {
-                    // --- CASE 1: Current Status (No Month Filter) ---
-                    // Use the latest data from students collection
-                    // If year is past year, this might be inaccurate, but "Current Status" implies "Now".
-                    // If user selects 2023 but no month, we usually assume "End of 2023" or "Current".
-                    // For simplicity: If no month is selected, we show CURRENT status regardless of year (or we could force current year).
-                    // Let's assume No Month = Current Live Data.
-                    dataset = state.students.map(s => ({
-                        class: s.kelas,
-                        iqraLevel: s.last_iqra_level,
-                        quranPage: s.last_quran_page,
-                        isQuran: !!s.last_quran_page
-                    }));
-                } else {
-                    // --- CASE 2: Historical Status (By Month/Year) ---
-                    const mIndex = parseInt(month) - 1; // 0-based
-                    const yInt = parseInt(year);
+            return (
+                <div className="p-4 md:p-6 max-w-5xl mx-auto pb-20">
+                    <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2"><Database className="text-gray-600"/> Pengurusan Data Pusat</h2>
+
+                    {/* FILTER KELAS UTAMA UNTUK ADMIN */}
+                    <div className="mb-6 flex items-center gap-3 bg-white p-4 rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
+                        <span className="font-bold text-gray-700 text-sm whitespace-nowrap">Tapis Data Mengikut Kelas:</span>
+                        <select 
+                            className="p-2 border rounded-lg bg-gray-50 text-sm min-w-[200px]" 
+                            value={filterClass} 
+                            onChange={(e) => setFilterClass(e.target.value)}
+                        >
+                            <option value="Semua">Semua Kelas</option>
+                            {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                    </div>
+
+                    {/* ANALISIS TERPERINCI */}
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-lg flex items-center gap-2"><BarChart2 size={20}/> Statistik Terperinci</h3>
+                            <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded">Paparan: {filterClass}</span>
+                        </div>
+                        
+                        <div className="grid md:grid-cols-2 gap-8">
+                            {/* Jadual Iqra */}
+                            <div>
+                                <h4 className="font-bold text-blue-600 mb-2 border-b pb-1">Analisis Iqra'</h4>
+                                <table className="w-full text-sm">
+                                    <thead className="bg-gray-50 text-left">
+                                        <tr><th className="p-2">Tahap</th><th className="p-2 text-right">Bil. Murid</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        {['Iqra 1', 'Iqra 2', 'Iqra 3', 'Iqra 4', 'Iqra 5', 'Iqra 6'].map(lvl => (
+                                            <tr key={lvl} className="border-b">
+                                                <td className="p-2 text-gray-700">{lvl}</td>
+                                                <td className="p-2 text-right font-bold">{analysisStats.iqra[lvl]}</td>
+                                            </tr>
+                                        ))}
+                                        <tr className="bg-blue-50 font-bold">
+                                            <td className="p-2">Jumlah Iqra'</td>
+                                            <td className="p-2 text-right">{analysisStats.totalIqra}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Jadual Quran */}
+                            <div>
+                                <h4 className="font-bold text-emerald-600 mb-2 border-b pb-1">Analisis Al-Quran</h4>
+                                <table className="w-full text-sm">
+                                    <thead className="bg-gray-50 text-left">
+                                        <tr><th className="p-2">Juzuk</th><th className="p-2 text-right">Bil. Murid</th></tr>
+                                    </thead>
+                                    <tbody>
+                                        {Object.keys(analysisStats.quran).map(range => (
+                                            <tr key={range} className="border-b">
+                                                <td className="p-2 text-gray-700">Juzuk {range}</td>
+                                                <td className="p-2 text-right font-bold">{analysisStats.quran[range]}</td>
+                                            </tr>
+                                        ))}
+                                        <tr className="bg-emerald-50 font-bold">
+                                            <td className="p-2">Jumlah Al-Quran</td>
+                                            <td className="p-2 text-right">{analysisStats.totalQuran}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* TETAPAN GOOGLE SHEETS */}
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
+                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Settings size={20}/> Integrasi Google Sheets (App Script)</h3>
+                        <p className="text-sm text-gray-500 mb-2">Data akan dihantar secara automatik ke Google Sheet setiap kali guru mengemaskini data.</p>
+                        <div className="flex gap-2">
+                            <input 
+                                type="text" 
+                                className="flex-1 border border-gray-300 rounded-lg p-2 text-sm" 
+                                placeholder="Masukkan URL Web App (e.g. https://script.google.com/...)" 
+                                value={scriptUrl} 
+                                onChange={e => setScriptUrl(e.target.value)} 
+                            />
+                            <Button onClick={() => handleSaveSettings(scriptUrl)}>Simpan</Button>
+                        </div>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-6 mb-8">
+                        {/* Card Backup */}
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Download size={20}/> Backup Data</h3>
+                            <p className="text-sm text-gray-500 mb-4">Muat turun fail backup lengkap (.csv) yang mengandungi semua data murid, markah PBD, dan status tasmik.</p>
+                            <Button onClick={downloadAllStudents} className="w-full">Muat Turun Backup</Button>
+                        </div>
+                         {/* Card Import */}
+                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                            <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Upload size={20}/> Import / Restore Data</h3>
+                            <p className="text-sm text-gray-500 mb-4">Gunakan fail backup untuk memulihkan data jika hilang, atau import senarai nama baru (Format: Nama, Kelas).</p>
+                            <div className="flex gap-2">
+                                <input type="file" ref={studentFileRef} onChange={handleImportStudents} className="hidden" accept=".csv" />
+                                <Button variant="secondary" onClick={() => studentFileRef.current.click()} className="flex-1">Pilih Fail Backup/CSV</Button>
+                                <Button variant="secondary" onClick={() => setShowAddStudentModal(true)} className="flex-1">Manual</Button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Pengurusan Guru */}
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
+                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2"><Shield size={20}/> Pengurusan Guru</h3>
+                        
+                        <div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-200">
+                            <h4 className="text-sm font-bold text-gray-700 mb-2">Tambah Whitelist (Auto-Approve)</h4>
+                            <div className="flex flex-col md:flex-row gap-2">
+                                <input type="text" placeholder="Nama Guru" className="border p-2 rounded flex-1" value={wlName} onChange={e => setWlName(e.target.value)} />
+                                <input type="email" placeholder="Emel Google" className="border p-2 rounded flex-1" value={wlEmail} onChange={e => setWlEmail(e.target.value)} />
+                                <Button onClick={() => { addToWhitelist(wlName, wlEmail); setWlName(''); setWlEmail(''); }} disabled={!wlEmail}>Tambah</Button>
+                            </div>
+                        </div>
+
+                        <div className="grid md:grid-cols-2 gap-6">
+                            <div>
+                                <h4 className="font-bold text-orange-600 mb-3 text-sm">Menunggu Kelulusan ({pendingTeachers.length})</h4>
+                                {pendingTeachers.length === 0 && <p className="text-gray-400 text-xs italic">Tiada guru pending.</p>}
+                                <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                                    {pendingTeachers.map(t => (
+                                        <div key={t.id} className="bg-white p-3 rounded border border-orange-100 shadow-sm flex justify-between items-center">
+                                            <div><p className="font-bold text-sm">{t.name}</p><p className="text-xs text-gray-500">{t.email}</p></div>
+                                            <div className="flex gap-1">
+                                                <Button onClick={() => removeUser(t.id)} variant="danger" className="px-2 py-1 text-xs">X</Button>
+                                                <Button onClick={() => approveTeacher(t.id)} className="px-2 py-1 text-xs">✓</Button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-emerald-600 mb-3 text-sm">Guru Aktif ({activeTeachers.length})</h4>
+                                <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                                    {activeTeachers.map(t => (
+                                        <div key={t.id} className="bg-white p-3 rounded border border-gray-100 flex justify-between items-center">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-xs">{t.name.charAt(0)}</div>
+                                                <div><p className="font-bold text-sm">{t.name}</p><p className="text-[10px] text-gray-400">{t.email}</p></div>
+                                            </div>
+                                            {t.role === 'admin' ? <span className="bg-blue-100 text-blue-700 text-[10px] px-1 rounded">ADMIN</span> : 
+                                            <button onClick={() => removeUser(t.id)} className="text-gray-300 hover:text-red-500"><Trash2 size={16}/></button>}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- SKRIN SETUP HALAQAH ---
+        const SetupHalaqahScreen = ({ assignedClass, uniqueClasses, students, currentUser, setView, handleSaveHalaqah }) => {
+            const [formClass, setFormClass] = useState(assignedClass || (uniqueClasses.length > 0 ? uniqueClasses[0] : ''));
+            const [selectedIds, setSelectedIds] = useState([]);
+            
+            const classStudents = students.filter(s => s.class === formClass);
+
+            useEffect(() => {
+                const myStudents = classStudents.filter(s => s.assignedTeacherEmail === currentUser.email).map(s => s.id);
+                setSelectedIds(myStudents);
+            }, [formClass, students]);
+
+            const toggleSelection = (id) => selectedIds.includes(id) ? setSelectedIds(selectedIds.filter(sid => sid !== id)) : setSelectedIds([...selectedIds, id]);
+
+            const handleSave = () => {
+                const originalMyStudents = classStudents.filter(s => s.assignedTeacherEmail === currentUser.email).map(s => s.id);
+                const unselectedIds = originalMyStudents.filter(id => !selectedIds.includes(id));
+                handleSaveHalaqah(selectedIds, unselectedIds);
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-50 flex flex-col pb-20">
+                     <div className="bg-white px-4 py-4 shadow-sm sticky top-0 z-10 border-b border-gray-100 flex items-center gap-3">
+                        <button onClick={() => setView('dashboard')}><ArrowLeft className="text-gray-600" /></button>
+                        <div><h2 className="text-lg font-bold text-emerald-800">Setup Halaqah</h2><p className="text-xs text-gray-500">Tanda murid dalam halaqah anda.</p></div>
+                    </div>
+                    <div className="p-4 bg-white border-b">
+                         <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Kelas</label>
+                         <select className="w-full p-2 border rounded-lg bg-gray-50" value={formClass} onChange={e => setFormClass(e.target.value)}>
+                            {uniqueClasses.length === 0 ? <option value="">Tiada Kelas (Import Data Dahulu)</option> : null}
+                            {uniqueClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                         </select>
+                    </div>
+                    <div className="p-4 space-y-3 max-w-2xl mx-auto w-full">
+                        {classStudents.length === 0 && <p className="text-center text-gray-400 py-8">Tiada murid dalam kelas ini.</p>}
+                        {classStudents.map(student => {
+                            const isAssignedToMe = student.assignedTeacherEmail === currentUser.email;
+                            const isAssignedToOther = student.assignedTeacherEmail && !isAssignedToMe;
+                            const isSelected = selectedIds.includes(student.id);
+                            return (
+                                <div key={student.id} onClick={() => !isAssignedToOther && toggleSelection(student.id)} className={`p-4 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${isSelected ? 'bg-emerald-50 border-emerald-500 shadow-sm' : isAssignedToOther ? 'bg-gray-100 border-gray-200 opacity-60 cursor-not-allowed' : 'bg-white border-gray-200'}`}>
+                                    <div>
+                                        <h4 className="font-bold text-gray-800">{student.name}</h4>
+                                        <p className="text-xs text-gray-500">{student.level}</p>
+                                        {isAssignedToOther && <span className="text-xs text-red-400 italic">Guru: {student.assignedTeacherName}</span>}
+                                    </div>
+                                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${isSelected ? 'bg-emerald-500 border-emerald-500' : 'border-gray-300'}`}>{isSelected && <CheckCircle className="text-white w-4 h-4" />}</div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-lg lg:left-64">
+                         <div className="max-w-2xl mx-auto"><Button onClick={handleSave} className="w-full justify-center">Simpan Halaqah</Button></div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- STUDENT DETAIL ---
+        const StudentDetail = ({ selectedStudent, records, handleToggleKhatam, handleUpdateTasmik, setView, setSelectedStudent }) => {
+            const studentHistory = records.filter(r => r.studentId === selectedStudent.id);
+            const [formData, setFormData] = useState({
+                level: selectedStudent.level, page: selectedStudent.page, rating: selectedStudent.status || 'Sederhana', comment: ''
+            });
+            const currentJuzuk = formData.level === 'Al-Quran' ? getExactJuzuk(formData.page) : null;
+
+            return (
+                <div className="pb-20 pt-6">
+                     <div className="max-w-3xl mx-auto px-4">
+                        <button onClick={() => setView('dashboard')} className="flex items-center text-emerald-600 mb-4 hover:underline"><ChevronRight className="rotate-180 w-5 h-5" /> Kembali</button>
+                        <div className="bg-emerald-600 text-white p-6 rounded-2xl shadow-lg mb-6 relative overflow-hidden">
+                            {selectedStudent.isKhatam && <div className="absolute top-0 right-0 bg-yellow-400 text-yellow-900 text-xs font-bold px-3 py-1 rounded-bl-xl flex items-center gap-1 shadow-md"><Award size={14} /> TELAH KHATAM</div>}
+                            <h2 className="text-3xl font-bold">{selectedStudent.name}</h2>
+                            <div className="flex items-center gap-3 mt-2 opacity-90">
+                                <span className="bg-emerald-700 px-3 py-1 rounded-full text-sm">{selectedStudent.class}</span>
+                            </div>
+                        </div>
+                        <Card className="mb-6 border-emerald-200 ring-4 ring-emerald-50">
+                            <div className="flex items-center gap-2 mb-4 text-emerald-800 font-bold border-b pb-2"><FileText size={20} /><h3>Kemaskini Bacaan</h3></div>
+                            <div className="space-y-4">
+                                
+                                <div className="flex items-start gap-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                                    <input 
+                                        type="checkbox" 
+                                        id="khatamCheck"
+                                        className="mt-1 w-5 h-5 text-emerald-600 rounded focus:ring-emerald-500"
+                                        checked={selectedStudent.isKhatam} 
+                                        onChange={() => handleToggleKhatam(selectedStudent.id, selectedStudent.isKhatam)}
+                                    />
+                                    <div>
+                                        <label htmlFor="khatamCheck" className="text-sm font-bold text-yellow-800 cursor-pointer block">
+                                            Tanda sebagai Khatam (Lengkap 30 Juzuk)
+                                        </label>
+                                        <p className="text-xs text-yellow-600 mt-1">
+                                            Tanda kotak ini jika murid telah khatam. Murid akan mendapat lencana khas. Anda boleh menukar Tahap bacaan ke permulaan semula untuk pusingan seterusnya.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Tahap</label>
+                                        <select className="w-full p-2 border rounded-lg bg-gray-50" value={formData.level} onChange={(e) => setFormData({...formData, level: e.target.value})}>
+                                            {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Muka Surat</label>
+                                        <input type="number" className="w-full p-2 border rounded-lg bg-gray-50" value={formData.page} onChange={(e) => setFormData({...formData, page: e.target.value})} />
+                                        {formData.level === 'Al-Quran' && <span className="text-xs text-emerald-600 font-bold block mt-1">Juzuk {currentJuzuk} (Tepat)</span>}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Kelancaran</label>
+                                    <div className="flex gap-2">
+                                        {RATINGS.map(r => (
+                                            <button key={r} onClick={() => setFormData({...formData, rating: r})} className={`flex-1 py-2 text-sm rounded-lg border transition-all ${formData.rating === r ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>{r}</button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <input type="text" className="w-full p-2 border rounded-lg bg-gray-50" placeholder="Catatan (Opsyenal)" value={formData.comment} onChange={(e) => setFormData({...formData, comment: e.target.value})} />
+                                <Button onClick={() => handleUpdateTasmik(selectedStudent.id, formData)} className="w-full py-3 text-lg"><Save size={20} /> Simpan Rekod</Button>
+                            </div>
+                        </Card>
+                        <div className="space-y-3">
+                            <h3 className="text-gray-500 font-bold mb-3 flex items-center gap-2"><History size={18} /> Sejarah Tasmik</h3>
+                            {studentHistory.length === 0 ? <p className="text-gray-400 text-center py-8">Tiada rekod.</p> : studentHistory.map(record => (
+                                <div key={record.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-start">
+                                    <div>
+                                        <div className="flex items-center gap-2"><span className="font-bold text-emerald-900">{record.level}</span><span className="text-gray-400">|</span><span>Ms. {record.page}</span></div>
+                                        <div className="text-xs text-gray-400 mt-1">{record.date} • {record.teacher}</div>
+                                    </div>
+                                    <Badge status={record.rating} />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- VIEW: PORTAL HOME (UPDATED) ---
+        const PortalHome = ({ currentUser, students, setView }) => (
+            <div className="p-6 max-w-6xl mx-auto">
+                <div className="mb-8">
+                    <h1 className="text-3xl font-bold text-gray-800">Selamat Datang, {currentUser.name}!</h1>
+                    <p className="text-gray-500">Portal Digitalisasi Panitia Pendidikan Islam</p>
+                </div>
+                
+                <DailyHadis />
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div onClick={() => setView('dashboard')} className="bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl p-6 text-white shadow-lg cursor-pointer transform hover:scale-105 transition-all">
+                        <Book size={40} className="mb-4 opacity-80"/>
+                        <h3 className="text-xl font-bold">e-Tasmik</h3>
+                        <p className="text-emerald-100 text-sm mt-1">Rekod bacaan Al-Quran & Iqra murid.</p>
+                    </div>
+                    <div onClick={() => setView('pbd_list')} className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl p-6 text-white shadow-lg cursor-pointer transform hover:scale-105 transition-all">
+                        <Clipboard size={40} className="mb-4 opacity-80"/>
+                        <h3 className="text-xl font-bold">Pentaksiran (PBD)</h3>
+                        <p className="text-blue-100 text-sm mt-1">Rekod TP untuk Akidah, Ibadah, Jawi & lain-lain.</p>
+                    </div>
+                    <div onClick={() => setView('jqaf_home')} className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-2xl p-6 text-white shadow-lg cursor-pointer transform hover:scale-105 transition-all">
+                        <Star size={40} className="mb-4 opacity-80"/>
+                        <h3 className="text-xl font-bold">j-QAF</h3>
+                        <p className="text-purple-100 text-sm mt-1">Modul Pemulihan Jawi & Khatam Quran.</p>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <h3 className="font-bold text-gray-800 mb-4">Statistik Ringkas</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="bg-gray-50 p-4 rounded-lg text-center">
+                            <span className="block text-2xl font-bold text-gray-700">{students.length}</span>
+                            <span className="text-xs text-gray-500 uppercase">Jumlah Murid</span>
+                        </div>
+                        <div className="bg-emerald-50 p-4 rounded-lg text-center">
+                            <span className="block text-2xl font-bold text-emerald-600">{students.filter(s=>s.level==='Al-Quran').length}</span>
+                            <span className="text-xs text-emerald-500 uppercase">Murid Al-Quran</span>
+                        </div>
+                        <div className="bg-yellow-50 p-4 rounded-lg text-center">
+                            <span className="block text-2xl font-bold text-yellow-600">{students.filter(s=>s.isKhatam).length}</span>
+                            <span className="text-xs text-yellow-500 uppercase">Telah Khatam</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+
+        // --- LOGIK APLIKASI UTAMA ---
+        function App() {
+            // Auth State
+            const [currentUser, setCurrentUser] = useState(null); 
+            const [loading, setLoading] = useState(true);
+            const [authError, setAuthError] = useState(null);
+
+            // Data State (Firebase)
+            const [students, setStudents] = useState([]);
+            const [records, setRecords] = useState([]);
+            const [teachersList, setTeachersList] = useState([]); 
+            const [whitelist, setWhitelist] = useState([]);
+            const [appSettings, setAppSettings] = useState({});
+
+            // UI State
+            const [view, setView] = useState('portal_home'); // Default view
+            const [sidebarOpen, setSidebarOpen] = useState(false);
+            const [selectedStudent, setSelectedStudent] = useState(null);
+            const [notification, setNotification] = useState(null);
+            const [filterClass, setFilterClass] = useState('Semua');
+            const [searchTerm, setSearchTerm] = useState('');
+            const [assignedClass, setAssignedClass] = useState(null); 
+            const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+            
+            const [hasWelcomed, setHasWelcomed] = useState(false);
+            const studentFileRef = useRef(null);
+
+            // Derived State: Senarai kelas unik
+            const uniqueClasses = useMemo(() => {
+                const classes = students.map(s => s.class).filter(c => c);
+                return [...new Set(classes)].sort();
+            }, [students]);
+
+            // Derived State: Kelas-kelas yang guru ini ada murid
+            const myClasses = useMemo(() => {
+                if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) return [];
+                const classes = students
+                    .filter(s => s.assignedTeacherEmail === currentUser.email)
+                    .map(s => s.class);
+                return [...new Set(classes)].sort();
+            }, [students, currentUser]);
+
+            // UPDATE: Analisis Terperinci (Admin)
+            const analysisStats = useMemo(() => {
+                const subset = students.filter(s => filterClass === 'Semua' || s.class === filterClass);
+                
+                const stats = {
+                    iqra: { 'Iqra 1': 0, 'Iqra 2': 0, 'Iqra 3': 0, 'Iqra 4': 0, 'Iqra 5': 0, 'Iqra 6': 0 },
+                    quran: { '1-5': 0, '6-10': 0, '11-15': 0, '16-20': 0, '21-25': 0, '26-30': 0 },
+                    khatam: 0,
+                    totalIqra: 0,
+                    totalQuran: 0,
+                    total: subset.length
+                };
+
+                subset.forEach(s => {
+                    if (s.isKhatam) stats.khatam++;
                     
-                    const firstDay = new Date(yInt, mIndex, 1);
-                    const lastDay = new Date(yInt, mIndex + 1, 0);
-                    
-                    // Format dates for string comparison (stored as YYYY-MM-DD in Firestore)
-                    const startStr = firstDay.toISOString().split('T')[0];
-                    const endStr = lastDay.toISOString().split('T')[0];
+                    if (s.level.startsWith('Iqra')) {
+                        if (stats.iqra[s.level] !== undefined) {
+                            stats.iqra[s.level]++;
+                            stats.totalIqra++;
+                        }
+                    } else if (s.level === 'Al-Quran') {
+                        stats.totalQuran++;
+                        const j = getExactJuzuk(s.page);
+                        // Pastikan j adalah nombor
+                        if (typeof j === 'number') {
+                            if (j >= 1 && j <= 5) stats.quran['1-5']++;
+                            else if (j >= 6 && j <= 10) stats.quran['6-10']++;
+                            else if (j >= 11 && j <= 15) stats.quran['11-15']++;
+                            else if (j >= 16 && j <= 20) stats.quran['16-20']++;
+                            else if (j >= 21 && j <= 25) stats.quran['21-25']++;
+                            else if (j >= 26 && j <= 30) stats.quran['26-30']++;
+                        }
+                    }
+                });
+                return stats;
+            }, [students, filterClass]);
 
-                    const qRec = query(collection(db, RECORDS_COL), 
-                        where('date', '>=', startStr), 
-                        where('date', '<=', endStr)
-                    );
+            // --- EFFECTS ---
 
-                    const snap = await getDocs(qRec);
-                    const records = snap.docs.map(d => d.data());
+            useEffect(() => {
+                const unsubscribe = auth.onAuthStateChanged(async (user) => {
+                    if (user) {
+                        const userRef = db.collection('users').doc(user.uid);
+                        const doc = await userRef.get();
 
-                    // We need the LATEST record per student within this month
-                    const studentMap = {};
-                    records.forEach(r => {
-                        // Key by studentId
-                        if (!studentMap[r.studentId]) {
-                            studentMap[r.studentId] = r;
+                        if (!doc.exists) {
+                            const usersSnapshot = await db.collection('users').get();
+                            const isFirstUser = usersSnapshot.empty;
+                            const whitelistSnapshot = await db.collection('whitelist').where('email', '==', user.email).get();
+                            const isWhitelisted = !whitelistSnapshot.empty;
+                            const role = isFirstUser ? 'admin' : (isWhitelisted ? 'teacher' : 'pending');
+
+                            const newUser = {
+                                uid: user.uid,
+                                email: user.email,
+                                name: user.displayName || 'Guru',
+                                photoURL: user.photoURL,
+                                role: role,
+                                createdAt: new Date()
+                            };
+                            await userRef.set(newUser);
+                            setCurrentUser(newUser);
                         } else {
-                            // Compare dates to find latest
-                            const curr = studentMap[r.studentId];
-                            if (r.date > curr.date || (r.date === curr.date && r.timestamp?.seconds > curr.timestamp?.seconds)) {
-                                studentMap[r.studentId] = r;
+                            setCurrentUser(doc.data());
+                        }
+                    } else {
+                        setCurrentUser(null);
+                        setHasWelcomed(false);
+                    }
+                    setLoading(false);
+                });
+                return () => unsubscribe();
+            }, []);
+
+            useEffect(() => {
+                if (currentUser) {
+                    if (currentUser.role === 'pending') {
+                        setAuthError("Akaun anda sedang menunggu kelulusan Admin.");
+                        setView('login');
+                        return;
+                    }
+                    setAuthError(null);
+                    
+                    if (!hasWelcomed && view === 'portal_home') {
+                        showNotification(`Ahlan wa Sahlan ya ${currentUser.name}`);
+                        setHasWelcomed(true);
+                    }
+
+                    const unsubStudents = db.collection('students').onSnapshot(snapshot => {
+                        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        setStudents(data);
+                    });
+
+                    const unsubRecords = db.collection('records').orderBy('date', 'desc').limit(500).onSnapshot(snapshot => {
+                        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        setRecords(data);
+                    });
+
+                    // Fetch Settings (Global)
+                    const unsubSettings = db.collection('settings').doc('general').onSnapshot(doc => {
+                        if(doc.exists) setAppSettings(doc.data());
+                    });
+
+                    let unsubUsers = () => {};
+                    let unsubWhitelist = () => {};
+                    
+                    if (currentUser.role === 'admin') {
+                        unsubUsers = db.collection('users').onSnapshot(snapshot => {
+                            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                            setTeachersList(data);
+                        });
+                        unsubWhitelist = db.collection('whitelist').onSnapshot(snapshot => {
+                            const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                            setWhitelist(data);
+                        });
+                    }
+
+                    if (view === 'loading' || view === 'login') {
+                         setView('portal_home');
+                    }
+
+                    return () => { unsubStudents(); unsubRecords(); unsubUsers(); unsubWhitelist(); unsubSettings(); };
+                } else {
+                    setView('login');
+                    setStudents([]);
+                    setRecords([]);
+                }
+            }, [currentUser]); 
+
+
+            // --- ACTIONS ---
+
+            const handleGoogleLogin = async () => {
+                try {
+                    await auth.signInWithPopup(googleProvider);
+                } catch (error) {
+                    console.error("Login failed", error);
+                    setAuthError("Gagal log masuk.");
+                }
+            };
+
+            const handleLogout = () => {
+                auth.signOut();
+                setAssignedClass(null);
+            };
+
+            const showNotification = (msg) => {
+                setNotification(msg);
+                setTimeout(() => setNotification(null), 4000);
+            };
+
+            // --- DATA ACTIONS ---
+            const handleImportStudents = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = async (evt) => {
+                    const text = evt.target.result;
+                    const rows = text.split('\n');
+                    let count = 0;
+                    const batch = db.batch();
+                    
+                    const header = rows[0] || "";
+                    const isBackup = header.includes("PBD_Keseluruhan");
+
+                    const dataRows = rows.slice(1);
+
+                    dataRows.forEach((row) => {
+                        if (!row.trim()) return;
+                        
+                        const cols = row.split(','); 
+                        const clean = (val) => val ? val.replace(/^"|"$/g, '').trim() : '';
+
+                        if (isBackup && cols.length >= 7) {
+                            const id = clean(cols[0]);
+                            const name = clean(cols[1]);
+                            const kelas = clean(cols[2]);
+                            
+                            if (id && name) {
+                                const ref = db.collection('students').doc(id.length > 5 ? id : undefined); 
+                                
+                                const pbd_scores = {
+                                    aq_quran: clean(cols[8]),
+                                    akidah: clean(cols[9]),
+                                    ibadah: clean(cols[10]),
+                                    sirah: clean(cols[11]),
+                                    adab: clean(cols[12]),
+                                    jawi: clean(cols[13]),
+                                    hasil_kerja: clean(cols[14]),
+                                    keseluruhan: clean(cols[15]),
+                                };
+
+                                batch.set(ref, {
+                                    name: name,
+                                    class: kelas,
+                                    assignedTeacherName: clean(cols[3]) || null,
+                                    assignedTeacherEmail: null, 
+                                    level: clean(cols[4]) || 'Iqra 1',
+                                    page: clean(cols[5]) || '1',
+                                    status: clean(cols[6]) || 'Sederhana',
+                                    isKhatam: clean(cols[7]) === 'true',
+                                    pbd_scores: pbd_scores,
+                                    restoredAt: new Date()
+                                }, { merge: true });
+                                count++;
+                            }
+
+                        } else if (cols.length >= 2) {
+                            const name = clean(cols[0]);
+                            const kelas = clean(cols[1]);
+                            if(name && kelas) {
+                                const newRef = db.collection('students').doc();
+                                batch.set(newRef, {
+                                    name: name,
+                                    class: kelas,
+                                    assignedTeacherEmail: null,
+                                    assignedTeacherName: null,
+                                    level: 'Iqra 1',
+                                    page: '1',
+                                    status: 'Sederhana',
+                                    isKhatam: false,
+                                    createdAt: new Date(),
+                                    pbd_scores: {}
+                                });
+                                count++;
                             }
                         }
                     });
 
-                    // Map to analysis format
-                    dataset = Object.values(studentMap).map(r => ({
-                        class: r.class,
-                        iqraLevel: r.iqraLevel, // stored as "1", "2" etc
-                        quranPage: r.quranPage,
-                        isQuran: !!r.quranPage
-                    }));
-                }
-
-                // Filter by Class (In Memory)
-                if (cls) {
-                    dataset = dataset.filter(d => d.class === cls);
-                }
-
-                // Calculate Stats
-                const stats = {
-                    total: dataset.length,
-                    iqraTotal: 0,
-                    quranTotal: 0,
-                    iqraBreakdown: {1:0, 2:0, 3:0, 4:0, 5:0, 6:0},
-                    juzBreakdown: {}
+                    if (count > 0) {
+                        await batch.commit();
+                        showNotification(`${count} murid berjaya dipulihkan/diimport!`);
+                    } else {
+                        showNotification("Fail kosong atau format salah.");
+                    }
                 };
-                for(let i=1; i<=30; i++) stats.juzBreakdown[i] = 0;
+                reader.readAsText(file);
+                e.target.value = '';
+            };
 
-                dataset.forEach(d => {
-                    if (d.isQuran || d.quranPage) {
-                        stats.quranTotal++;
-                        const page = parseInt(d.quranPage);
-                        const juz = window.getJuzukByPage(page);
-                        if (juz !== '-' && juz !== 'Tamat') {
-                            stats.juzBreakdown[juz] = (stats.juzBreakdown[juz] || 0) + 1;
-                        }
-                    } else if (d.iqraLevel) {
-                        stats.iqraTotal++;
-                        // Extract number from "Iqra 1" or just "1"
-                        let level = d.iqraLevel.toString().replace(/\D/g, ''); 
-                        if (stats.iqraBreakdown[level] !== undefined) {
-                            stats.iqraBreakdown[level]++;
-                        }
+            const handleAddStudent = async (name, kelas) => {
+                try {
+                    await db.collection('students').add({
+                        name: name,
+                        class: kelas,
+                        assignedTeacherEmail: null,
+                        assignedTeacherName: null,
+                        level: 'Iqra 1',
+                        page: '1',
+                        status: 'Sederhana',
+                        isKhatam: false,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        pbd_scores: {}
+                    });
+                    showNotification("Murid berjaya ditambah!");
+                    setShowAddStudentModal(false);
+                } catch(e) {
+                    console.error(e);
+                    showNotification("Ralat menambah murid.");
+                }
+            };
+
+            const handleDeleteStudent = async (studentId, studentName) => {
+                if(!window.confirm(`ADAKAH ANDA PASTI?\n\nMurid: ${studentName}\n\nTindakan ini akan memadam data murid ini sepenuhnya. Sejarah bacaan tidak akan dapat dikaitkan semula.`)) return;
+                try {
+                    await db.collection('students').doc(studentId).delete();
+                    showNotification("Murid berjaya dipadam.");
+                } catch(e) {
+                    console.error(e);
+                    showNotification("Gagal memadam murid.");
+                }
+            };
+
+            const handleSaveHalaqah = async (selectedIds, unselectedIds) => {
+                const batch = db.batch();
+                selectedIds.forEach(id => {
+                    const ref = db.collection('students').doc(id);
+                    batch.update(ref, { assignedTeacherEmail: currentUser.email, assignedTeacherName: currentUser.name });
+                });
+                unselectedIds.forEach(id => {
+                    const ref = db.collection('students').doc(id);
+                    batch.update(ref, { assignedTeacherEmail: null, assignedTeacherName: null });
+                });
+                await batch.commit();
+                showNotification("Halaqah berjaya dikemaskini!");
+                setView('dashboard');
+                setAssignedClass(null); 
+            };
+
+            const handleDeleteHalaqah = async (className) => {
+                if (!window.confirm(`Adakah anda pasti mahu memadam halaqah untuk kelas ${className}? Semua murid akan dinyah-assign.`)) return;
+                const studentsInHalaqah = students.filter(s => s.class === className && s.assignedTeacherEmail === currentUser.email);
+                const batch = db.batch();
+                studentsInHalaqah.forEach(s => {
+                    const ref = db.collection('students').doc(s.id);
+                    batch.update(ref, { assignedTeacherEmail: null, assignedTeacherName: null });
+                });
+                await batch.commit();
+                showNotification(`Halaqah kelas ${className} berjaya dipadam.`);
+            };
+
+            const handleUpdateTasmik = async (studentId, newData) => {
+                const today = new Date().toISOString().split('T')[0];
+                const studentData = { level: newData.level, page: newData.page, status: newData.rating };
+                
+                await db.collection('records').add({
+                    studentId, date: today, teacher: currentUser.name, email: currentUser.email, ...newData, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                await db.collection('students').doc(studentId).update(studentData);
+                
+                syncToGoogleSheets({ type: 'TASMIK', studentId, teacher: currentUser.name, ...studentData, ...newData }, appSettings);
+
+                showNotification("Rekod disimpan!");
+                setView('dashboard');
+            };
+
+            const handleUpdatePBD = async (studentId, field, value) => {
+                try {
+                    await db.collection('students').doc(studentId).update({
+                        [`pbd_scores.${field}`]: value
+                    });
+
+                    syncToGoogleSheets({ type: 'PBD', studentId, field, value, teacher: currentUser.name }, appSettings);
+
+                } catch(e) {
+                    console.error("Gagal update PBD", e);
+                    showNotification("Ralat menyimpan PBD");
+                }
+            };
+
+            const handleSaveSettings = async (url) => {
+                await db.collection('settings').doc('general').set({ googleScriptUrl: url }, { merge: true });
+                showNotification("Tetapan disimpan.");
+            };
+
+            const handleToggleKhatam = async (studentId, currentStatus) => {
+                await db.collection('students').doc(studentId).update({ isKhatam: !currentStatus });
+                if (selectedStudent && selectedStudent.id === studentId) {
+                    setSelectedStudent(prev => ({ ...prev, isKhatam: !currentStatus }));
+                }
+                const msg = !currentStatus ? "Tahniah! Murid telah Khatam." : "Status Khatam dibatalkan.";
+                showNotification(msg);
+            };
+
+             const downloadHistory = (type = 'all') => {
+                let csvContent = "data:text/csv;charset=utf-8,Tarikh,Nama Murid,Kelas,Guru Tasmik,Tahap,Muka Surat,Kelancaran,Catatan\n";
+                const recordsToExport = records.filter(rec => {
+                    if (type === 'all') return true;
+                    const student = students.find(s => s.id === rec.studentId);
+                    return student && (filterClass === 'Semua' || student.class === filterClass);
+                });
+                recordsToExport.forEach(rec => {
+                    const student = students.find(s => s.id === rec.studentId);
+                    if (student) {
+                        const safeComment = (rec.comment || '').replace(/,/g, ';');
+                        csvContent += `${rec.date},${student.name},${student.class},${rec.teacher},${rec.level},${rec.page},${rec.rating},${safeComment}\n`;
                     }
                 });
-
-                state.analysis.data = stats;
-
-            } catch (err) {
-                console.error("Analysis Error:", err);
-                alert("Gagal memuatkan analisis: " + err.message);
-            } finally {
-                state.analysis.loading = false;
-                renderApp();
-            }
-        };
-
-        // ... confirmation logic ...
-        let confirmCallback = null;
-        window.openConfirmModal = (message, callback) => {
-            document.getElementById('confirm-message').innerText = message;
-            confirmCallback = callback;
-            document.getElementById('confirm-modal').classList.remove('hidden');
-        };
-        window.closeConfirmModal = () => {
-            document.getElementById('confirm-modal').classList.add('hidden');
-            confirmCallback = null;
-        };
-        document.getElementById('confirm-btn-action').addEventListener('click', async () => {
-            if (confirmCallback) {
-                const btn = document.getElementById('confirm-btn-action');
-                const originalHtml = btn.innerHTML;
-                btn.innerHTML = `<div class="loader w-4 h-4 border-2 border-white border-t-transparent"></div>`;
-                btn.disabled = true;
-                try { await confirmCallback(); } catch (e) { alert("Ralat: " + e.message); } 
-                finally { btn.innerHTML = originalHtml; btn.disabled = false; closeConfirmModal(); }
-            } else { closeConfirmModal(); }
-        });
-
-        // Global Delete
-        window.handleDeleteRecord = (event, collectionName, id) => {
-            event.stopPropagation();
-            window.openConfirmModal("Padam rekod ini?", async () => {
-                await deleteDoc(doc(db, collectionName, id));
-                window.showToast("Dipadam!");
-            });
-        };
-        window.handleDeleteAll = (type) => {
-            window.openConfirmModal(`AMARAN: Padam SEMUA data ${type}?`, async () => {
-                const q = type === 'guru' ? query(collection(db, USERS_COL), where('role', '==', 'guru')) : collection(db, STUDENTS_COL);
-                const snap = await getDocs(q);
-                const batch = writeBatch(db);
-                snap.docs.forEach(d => batch.delete(d.ref));
-                await batch.commit();
-                window.showToast(`Data ${type} dipadam.`);
-            });
-        };
-        window.handleSystemReset = () => {
-            window.openConfirmModal("RESET SISTEM? Sila sahkan.", async () => { alert("Sila padam di Firebase Console."); });
-        };
-
-        async function _execSaveRecord(studentId) {
-             const typeRaw = document.getElementById(`type-${studentId}`).value;
-             const page = document.getElementById(`page-${studentId}`).value;
-             const status = document.getElementById(`status-${studentId}`).value;
-             const isQuran = typeRaw === 'Al-Quran';
-             const student = state.students.find(s => s.id === studentId);
-             const today = new Date().toISOString().split('T')[0];
-             const recordData = {
-                 studentId, studentName: student.nama_murid, class: student.kelas,
-                 iqraLevel: isQuran ? '' : typeRaw.split(' ')[1], iqraPage: isQuran ? '' : page, iqraStatus: isQuran ? '' : status,
-                 quranPage: isQuran ? page : '', quranStatus: isQuran ? status : '',
-                 date: today, guru_id: state.user.id, guru_nama: state.user.nama, timestamp: serverTimestamp()
-             };
-             await addDoc(collection(db, RECORDS_COL), recordData);
-             await updateDoc(doc(db, STUDENTS_COL, studentId), {
-                 last_iqra_level: recordData.iqraLevel, last_iqra_page: recordData.iqraPage, last_iqra_status: recordData.iqraStatus,
-                 last_quran_page: recordData.quranPage, last_quran_status: recordData.quranStatus, last_tasmik_date: today
-             });
-             window.sendToGoogleSheet({ ...recordData, tarikh: today, nama_murid: student.nama_murid, kelas: student.kelas, jenis: isQuran ? "Al-Quran" : "Iqra", tahap: isQuran ? `Juz ${window.getJuzukByPage(page)}` : `Iqra ${recordData.iqraLevel}`, muka_surat: page || "-", status: status });
-        }
-
-        window.setLoginMode = (mode) => { state.loginMode = mode; renderApp(); };
-        window.handleLogin = async (e) => {
-            e.preventDefault();
-            if (state.loginMode === 'admin') {
-                const id = document.getElementById('loginAdminId').value; const pass = document.getElementById('loginAdminPass').value;
-                const admin = state.users.find(u => u.role === 'admin' && u.nama.toLowerCase() === id.toLowerCase());
-                if (!admin && id === 'admin' && pass === 'admin123') { await addDoc(collection(db, USERS_COL), { nama: 'admin', role: 'admin', katalaluan: 'admin123', status: 'Aktif', createdAt: serverTimestamp() }); window.location.reload(); return; }
-                if (admin && (pass === admin.katalaluan || pass === admin.ic_akhir)) { state.user = admin; state.view = 'admin-dash'; window.runAnalysis(); } 
-                else { alert('Log masuk gagal.'); }
-            } else {
-                const id = document.getElementById('loginGuruId').value; const ic = document.getElementById('loginIc').value;
-                const guru = state.users.find(u => u.id === id);
-                if (guru && ic === (guru.ic_akhir || '1234')) { state.user = guru; state.view = 'teacher-dash'; renderApp(); } 
-                else { alert('Log masuk gagal.'); }
-            }
-        };
-        
-        window.handleLogout = () => { state.user = null; state.view = 'login'; renderApp(); };
-        window.setActiveTab = (tab) => { 
-            state.activeTab = tab; 
-            if(tab === 'analisis') window.runAnalysis();
-            else renderApp(); 
-        };
-        window.setSelectedClass = (val) => { state.selectedClass = val; renderApp(); };
-        window.setAdminFilter = (val) => { state.filterClassAdmin = val; renderApp(); };
-        window.setSearchTerm = (val) => { state.searchTerm = val; renderApp(); };
-        window.updateJuzukDisplay = (id) => {
-            const typeEl = document.getElementById(`type-${id}`); const pageEl = document.getElementById(`page-${id}`);
-            if(!typeEl || !pageEl) return;
-            const badge = document.getElementById(`juz-${id}`);
-            if (typeEl.value === 'Al-Quran' && pageEl.value) { badge.textContent = `Juz ${window.getJuzukByPage(pageEl.value)}`; badge.className = "text-xs bg-blue-100 text-blue-700 font-bold px-2 py-1 rounded"; } 
-            else { badge.textContent = "-"; badge.className = "text-slate-300 text-xs"; }
-        };
-        window.saveSingleRecord = async (studentId, btnElement) => {
-             const originalContent = btnElement.innerHTML; btnElement.disabled = true; btnElement.innerHTML = `<div class="loader w-4 h-4 border-2 border-white border-t-transparent"></div>`;
-             try { await _execSaveRecord(studentId); window.showToast("Disimpan"); } catch (e) { alert("Ralat: " + e.message); } finally { btnElement.disabled = false; btnElement.innerHTML = originalContent; }
-        };
-        window.openBatchConfirmation = () => {
-            const rows = document.querySelectorAll('tr[id^="row-"]');
-            let summaryHtml = `<div class="mb-4 text-sm text-slate-600">Pelajar dikemaskini:</div><div class="max-h-[50vh] overflow-y-auto border rounded-lg mb-4 bg-slate-50"><table class="w-full text-sm text-left"><thead class="bg-slate-100 border-b"><tr><th class="p-2">Nama</th><th class="p-2">Bacaan</th></tr></thead><tbody class="divide-y">`;
-            let count = 0; rows.forEach(row => { summaryHtml += `<tr><td class="p-2">${row.querySelector('.font-bold').innerText}</td><td class="p-2">Data baru</td></tr>`; count++; });
-            summaryHtml += `</tbody></table></div><div class="flex gap-2 justify-end"><button onclick="closeModal()" class="px-4 py-2 text-slate-600">Batal</button><button id="confirmBatchBtn" onclick="confirmBatchSave()" class="px-6 py-2 bg-blue-600 text-white rounded-lg">Simpan (${count})</button></div>`;
-            document.getElementById('modal-title').innerText = "Simpan Pukal"; document.getElementById('modal-content').innerHTML = summaryHtml; document.getElementById('modal-overlay').classList.remove('hidden');
-        };
-        window.confirmBatchSave = async () => {
-            const btn = document.getElementById('confirmBatchBtn'); btn.disabled = true; btn.innerText = "Menyimpan...";
-            const rows = document.querySelectorAll('tr[id^="row-"]');
-            try { for (const row of rows) { await _execSaveRecord(row.id.replace('row-', '')); } window.showToast("Semua disimpan!"); closeModal(); } catch (e) { alert(e.message); }
-        };
-        window.handleCSVImport = (input) => { const file = input.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = async (e) => { const lines = e.target.result.split('\n'); const batch = writeBatch(db); let count = 0; const teachers = state.users.filter(u => u.role === 'guru'); for(let i=1; i<lines.length && count < 450; i++) { const cols = lines[i].trim().split(','); if(cols.length >= 2) { const [nama, kelas, namaGuru] = cols; let guruId = '', guruNama = ''; if (namaGuru) { const match = teachers.find(t => t.nama.toLowerCase() === namaGuru.trim().toLowerCase()); if (match) { guruId = match.id; guruNama = match.nama; } else { const newRef = doc(collection(db, USERS_COL)); batch.set(newRef, { nama: namaGuru.trim(), role: 'guru', ic_akhir: '1234', status: 'Aktif', createdAt: serverTimestamp() }); guruId = newRef.id; guruNama = namaGuru.trim(); } } const newRef = doc(collection(db, STUDENTS_COL)); batch.set(newRef, { nama_murid: nama.trim(), kelas: kelas?.trim(), guru_tasmik_id: guruId, guru_tasmik_nama: guruNama, status: 'Aktif', createdAt: serverTimestamp() }); count++; } } await batch.commit(); window.showToast(`${count} rekod diimport.`); renderApp(); }; reader.readAsText(file); };
-        window.saveSheetUrl = async () => { const url = document.getElementById('sheetUrl').value; await setDoc(doc(db, CONFIG_COL, 'settings'), { url }); window.showToast("Disimpan"); };
-        
-        window.openModal = (type, id = null) => {
-             let content = '', data = null;
-             if (id) { if (type === 'guru') data = state.users.find(u => u.id === id); else data = state.students.find(s => s.id === id); }
-             if (type === 'guru') { content = `<form onsubmit="saveGuru(event, '${id||''}')" class="space-y-4"><input name="nama" value="${data?data.nama:''}" placeholder="Nama" class="w-full p-2 border rounded" required><button class="bg-blue-600 text-white p-2 rounded w-full">Simpan</button></form>`; } 
-             else { const teacherOpts = state.users.filter(u=>u.role==='guru').map(t=>`<option value="${t.id}" ${data?.guru_tasmik_id===t.id?'selected':''}>${t.nama}</option>`).join(''); content = `<form onsubmit="saveStudent(event, '${id||''}')" class="space-y-4"><input name="nama" value="${data?data.nama_murid:''}" placeholder="Nama" class="w-full p-2 border rounded" required><input name="kelas" value="${data?data.kelas:''}" placeholder="Kelas" class="w-full p-2 border rounded"><select name="guru" class="w-full p-2 border rounded"><option value="">--Guru--</option>${teacherOpts}</select><button class="bg-blue-600 text-white p-2 rounded w-full">Simpan</button></form>`; }
-             document.getElementById('modal-title').innerText = id ? "Edit" : "Tambah"; document.getElementById('modal-content').innerHTML = content; document.getElementById('modal-overlay').classList.remove('hidden');
-             window.saveGuru = async (e, eid) => { e.preventDefault(); try { const p = {nama: e.target.nama.value}; if(eid) await updateDoc(doc(db,USERS_COL,eid),p); else {p.role='guru';p.ic_akhir='1234';p.createdAt=serverTimestamp();await addDoc(collection(db,USERS_COL),p);} closeModal(); window.showToast("Berjaya"); } catch(er){alert(er.message);} }
-             window.saveStudent = async (e, eid) => { e.preventDefault(); try { const gid=e.target.guru.value; const p={nama_murid:e.target.nama.value, kelas:e.target.kelas.value, guru_tasmik_id:gid, guru_tasmik_nama:state.users.find(u=>u.id===gid)?.nama||''}; if(eid) await updateDoc(doc(db,STUDENTS_COL,eid),p); else {p.createdAt=serverTimestamp();await addDoc(collection(db,STUDENTS_COL),p);} closeModal(); window.showToast("Berjaya"); } catch(er){alert(er.message);} }
-        };
-        window.viewHistory = async (studentId) => {
-            const q = query(collection(db, RECORDS_COL), where('studentId', '==', studentId)); const snap = await getDocs(q); const list = snap.docs.map(d => d.data()).sort((a,b) => new Date(b.date) - new Date(a.date));
-            const content = `<div class="space-y-3">${list.length > 0 ? list.map(h => `<div class="bg-slate-50 p-3 rounded text-sm"><div><span class="text-xs text-gray-500">${h.date}</span></div><div>${h.iqraLevel ? `Iqra ${h.iqraLevel}` : `Juz ${window.getJuzukByPage(h.quranPage)} (MS ${h.quranPage})`}</div></div>`).join('') : '<p class="text-center text-slate-400">Tiada rekod.</p>'}</div>`;
-            document.getElementById('modal-title').innerText = "Sejarah"; document.getElementById('modal-content').innerHTML = content; document.getElementById('modal-overlay').classList.remove('hidden');
-        };
-        window.closeModal = () => { document.getElementById('modal-overlay').classList.add('hidden'); };
-        
-        // --- RENDER ---
-        function renderApp() {
-            const app = document.getElementById('app');
-            if (state.view === 'login') app.innerHTML = renderLogin();
-            else if (state.view === 'teacher-dash') app.innerHTML = renderTeacherDash();
-            else if (state.view === 'admin-dash') app.innerHTML = renderAdminDash();
-            lucide.createIcons();
-            setupEventListeners();
-        }
-
-        function renderLogin() {
-            const teachersList = state.users.filter(u => u.role === 'guru');
-            const options = teachersList.map(t => `<option value="${t.id}">${t.nama}</option>`).join('');
-            return `<div class="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans w-full"><div class="bg-white w-full max-w-md p-8 rounded-2xl shadow-xl border border-slate-200"><div class="text-center mb-8"><img src="https://i.postimg.cc/k4N1mPR1/semat-04.png" alt="Logo SKMT" class="w-28 h-auto mx-auto mb-4 drop-shadow-md" /><h1 class="text-2xl font-bold text-slate-800">eTasmik SK Masjid Tanah (Integrasi)</h1><p class="text-slate-500 text-sm mt-1">Log Masuk</p></div><div class="flex bg-slate-100 p-1 rounded-xl mb-6"><button onclick="setLoginMode('guru')" class="flex-1 py-2 text-sm font-bold rounded-lg transition-all ${state.loginMode === 'guru' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}">Guru</button><button onclick="setLoginMode('admin')" class="flex-1 py-2 text-sm font-bold rounded-lg transition-all ${state.loginMode === 'admin' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}">Admin</button></div><form id="loginForm" class="space-y-4">${state.loginMode === 'guru' ? `<div class="relative"><div class="absolute left-3 top-3.5 text-slate-400"><i data-lucide="user" class="w-5 h-5"></i></div><select id="loginGuruId" class="w-full pl-10 p-3 border rounded-xl bg-white outline-none"><option value="">-- Pilih Guru --</option>${options}</select></div><div class="relative"><div class="absolute left-3 top-3.5 text-slate-400"><i data-lucide="credit-card" class="w-5 h-5"></i></div><input type="password" id="loginIc" maxlength="4" class="w-full pl-10 p-3 border rounded-xl outline-none" placeholder="4 Digit Akhir IC"></div>` : `<div class="relative"><div class="absolute left-3 top-3.5 text-slate-400"><i data-lucide="user" class="w-5 h-5"></i></div><input type="text" id="loginAdminId" class="w-full pl-10 p-3 border rounded-xl outline-none" placeholder="ID Admin"></div><div class="relative"><div class="absolute left-3 top-3.5 text-slate-400"><i data-lucide="lock" class="w-5 h-5"></i></div><input type="password" id="loginAdminPass" class="w-full pl-10 p-3 border rounded-xl outline-none" placeholder="Kata Laluan"></div>`}<button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-lg transition-all active:scale-95">Log Masuk</button></form></div></div>`;
-        }
-
-        function renderTeacherDash() {
-            const classes = getUniqueClasses();
-            const students = getFilteredStudents();
-            const classOptions = classes.map(c => `<option value="${c}" ${state.selectedClass === c ? 'selected' : ''}>${c}</option>`).join('');
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `Sejarah_Bacaan.csv`);
+                document.body.appendChild(link);
+                link.click();
+            };
             
-            const rows = students.length > 0 ? students.map((s, idx) => {
-                const local = state.localEdits[s.id] || {};
-                const dbIsQuran = s.last_quran_page ? true : false;
-                const dbType = dbIsQuran ? 'Al-Quran' : (s.last_iqra_level ? `Iqra ${s.last_iqra_level}` : 'Iqra 1');
-                const dbPage = dbIsQuran ? (s.last_quran_page || '') : (s.last_iqra_page || '');
-                const dbStatus = s.last_iqra_status || s.last_quran_status || 'Tasmik';
-                const currentType = local.type !== undefined ? local.type : dbType;
-                const currentPage = local.page !== undefined ? local.page : dbPage;
-                const currentStatus = local.status !== undefined ? local.status : dbStatus;
-                const isQuranView = currentType === 'Al-Quran';
-                const juzukDisplay = isQuranView && currentPage ? `Juz ${getJuzukByPage(currentPage)}` : '-';
+            const downloadAllStudents = () => {
+                let csvContent = "data:text/csv;charset=utf-8,ID,Nama Murid,Kelas,Guru Tasmik,Tahap Tasmik,Muka Surat,Status,Khatam,PBD_AQ,PBD_Akidah,PBD_Ibadah,PBD_Sirah,PBD_Adab,PBD_Jawi,PBD_HasilKerja,PBD_Keseluruhan\n";
+                students.forEach(s => {
+                    const pbd = s.pbd_scores || {};
+                    csvContent += `${s.id},"${s.name}",${s.class},"${s.assignedTeacherName || ''}",${s.level},${s.page},${s.status},${s.isKhatam},${pbd.aq_quran || ''},${pbd.akidah || ''},${pbd.ibadah || ''},${pbd.sirah || ''},${pbd.adab || ''},${pbd.jawi || ''},${pbd.hasil_kerja || ''},${pbd.keseluruhan || ''}\n`;
+                });
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `Data_Murid_Lengkap_Backup.csv`);
+                document.body.appendChild(link);
+                link.click();
+            }
+
+            const approveTeacher = async (userId) => {
+                await db.collection('users').doc(userId).update({ role: 'teacher' });
+                showNotification("Guru diluluskan!");
+            };
+            const removeUser = async (userId) => {
+                if(window.confirm("Padam pengguna ini?")) await db.collection('users').doc(userId).delete();
+            };
+            const addToWhitelist = async (name, email) => {
+                if (!email) return;
+                const existing = whitelist.find(w => w.email === email);
+                if (existing) { showNotification("Emel sudah ada."); return; }
+                await db.collection('whitelist').add({ name: name || 'Guru', email: email, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                const existingUser = teachersList.find(t => t.email === email && t.role === 'pending');
+                if (existingUser) await db.collection('users').doc(existingUser.id).update({ role: 'teacher' });
+                showNotification(`Guru ${name} ditambah.`);
+            };
+
+            // --- NAVIGATION SIDEBAR ---
+            const Sidebar = ({ activeView, onChangeView, isOpen, toggle }) => {
+                const menuItems = [
+                    { id: 'portal_home', label: 'Utama', icon: Home },
+                    { id: 'dashboard', label: 'e-Tasmik', icon: Book },
+                    { id: 'pbd_list', label: 'Borang PBD', icon: Clipboard },
+                    { id: 'jqaf_home', label: 'j-QAF', icon: Star },
+                ];
                 
-                return `<tr class="border-b border-slate-100 hover:bg-blue-50 transition-colors group" id="row-${s.id}"><td class="p-3 align-middle text-center text-xs font-mono text-slate-400 w-10">${idx + 1}</td><td class="p-3 align-middle"><div class="font-bold text-slate-800 text-sm">${s.nama_murid}</div><div class="text-xs text-slate-400 font-mono">${s.no_id || '-'}</div></td><td class="p-2 align-middle"><select id="type-${s.id}" onchange="handleLocalEdit('${s.id}', 'type', this.value); updateJuzukDisplay('${s.id}')" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none min-w-[110px]"><optgroup label="Iqra">${[1,2,3,4,5,6].map(i => `<option value="Iqra ${i}" ${currentType === `Iqra ${i}` ? 'selected' : ''}>Iqra ${i}</option>`).join('')}</optgroup><optgroup label="Al-Quran"><option value="Al-Quran" ${currentType === 'Al-Quran' ? 'selected' : ''}>Al-Quran</option></optgroup></select></td><td class="p-2 align-middle"><input type="number" id="page-${s.id}" value="${currentPage}" oninput="handleLocalEdit('${s.id}', 'page', this.value); updateJuzukDisplay('${s.id}')" placeholder="MS" class="w-16 p-2 border border-slate-300 rounded-lg text-sm text-center focus:ring-2 focus:ring-blue-500 outline-none"/></td><td class="p-2 align-middle text-center"><span id="juz-${s.id}" class="text-xs ${isQuranView ? 'bg-blue-100 text-blue-700 font-bold px-2 py-1 rounded' : 'text-slate-300'}">${juzukDisplay}</span></td><td class="p-2 align-middle"><select id="status-${s.id}" onchange="handleLocalEdit('${s.id}', 'status', this.value)" class="w-full p-2 border border-slate-300 rounded-lg text-sm bg-white outline-none"><option value="Tasmik" ${currentStatus === 'Tasmik' ? 'selected' : ''}>Tasmik</option><option value="Khatam" ${currentStatus === 'Khatam' ? 'selected' : ''}>Khatam</option></select></td><td class="p-2 align-middle text-right"><div class="flex items-center justify-end gap-2"><button onclick="saveSingleRecord('${s.id}', this)" class="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg shadow-sm transition-transform active:scale-95 flex items-center justify-center w-8 h-8"><i data-lucide="check" class="w-4 h-4"></i></button><button onclick="viewHistory('${s.id}')" class="text-slate-400 hover:text-blue-600 p-2 rounded-lg hover:bg-blue-50 w-8 h-8 flex items-center justify-center"><i data-lucide="history" class="w-4 h-4"></i></button></div></td></tr>`;
-            }).join('') : `<tr><td colspan="7" class="p-8 text-center text-slate-400">Tiada murid dalam kelas ini.</td></tr>`;
-            
-            return `<div class="h-full flex flex-col"><header class="bg-white/80 backdrop-blur-md sticky top-0 z-30 border-b px-4 py-3 flex justify-between items-center shadow-sm"><div><h1 class="font-bold text-lg text-slate-800">eTasmik Guru</h1><p class="text-xs text-slate-500">${state.user.nama}</p></div><button onclick="handleLogout()" class="text-red-500 hover:bg-red-50 p-2 rounded-full"><i data-lucide="log-out" class="w-5 h-5"></i></button></header><main class="flex-1 overflow-y-auto p-4 max-w-5xl mx-auto w-full pb-24"><div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 mb-6"><label class="block text-sm font-bold mb-2 text-slate-600">Pilih Kelas Tasmik</label><div class="relative mb-4"><select onchange="setSelectedClass(this.value)" class="w-full p-3 border rounded-xl bg-slate-50 text-lg outline-none focus:ring-2 focus:ring-blue-500 appearance-none"><option value="">-- Sila Pilih Kelas --</option>${classOptions}</select><i data-lucide="chevron-down" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none w-5 h-5"></i></div>${state.selectedClass ? `<div class="relative animate-in fade-in slide-in-from-top-2"><div class="absolute left-3 top-3 text-slate-400"><i data-lucide="search" class="w-5 h-5"></i></div><input type="text" placeholder="Cari nama murid..." value="${state.searchTerm}" oninput="setSearchTerm(this.value)" class="w-full pl-10 p-3 border rounded-xl bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all"></div>` : ''}</div>${state.selectedClass ? `<div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"><div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead class="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase text-xs tracking-wider"><tr><th class="p-4 w-10 text-center">#</th><th class="p-4 w-1/4">Nama Murid</th><th class="p-4 w-1/5">Bacaan</th><th class="p-4 w-20 text-center">MS</th><th class="p-4 w-20 text-center">Info</th><th class="p-4 w-1/6">Status</th><th class="p-4 text-right">Tindakan</th></tr></thead><tbody class="divide-y divide-slate-100">${rows}</tbody></table></div></div>` : `<div class="text-center py-20 text-slate-400"><i data-lucide="book-open" class="mx-auto mb-4 w-12 h-12 opacity-20"></i><p>Pilih kelas untuk mula.</p></div>`}</main>${state.selectedClass && students.length > 0 ? `<div class="fixed bottom-6 left-0 right-0 flex justify-center z-40"><button onclick="openBatchConfirmation()" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-full shadow-xl flex items-center gap-3 font-bold text-lg transition-transform hover:scale-105"><i data-lucide="save-all" class="w-6 h-6"></i> Simpan Semua Pukal</button></div>` : ''}</div>`;
-        }
-
-        function renderAdminDash() {
-            const navItems = [
-                {id: 'analisis', icon: 'pie-chart', label: 'Analisis'},
-                {id: 'guru', icon: 'user', label: 'Guru'},
-                {id: 'murid', icon: 'users', label: 'Murid'},
-                {id: 'import', icon: 'upload', label: 'Data / Import'}
-            ].map(i => `<button onclick="setActiveTab('${i.id}')" class="flex w-full items-center gap-3 p-3 rounded-xl text-sm font-medium transition-all ${state.activeTab === i.id ? 'bg-blue-50 text-blue-600' : 'text-slate-600 hover:bg-slate-50'}"><i data-lucide="${i.icon}" class="w-5 h-5"></i> ${i.label}</button>`).join('');
-
-            let content = '';
-            if (state.activeTab === 'analisis') {
-                const { data, loading, filter } = state.analysis;
-                const months = ['Januari', 'Februari', 'Mac', 'April', 'Mei', 'Jun', 'Julai', 'Ogos', 'September', 'Oktober', 'November', 'Disember'];
-                const classes = getUniqueClasses();
-                const currentYear = new Date().getFullYear();
-                const years = [currentYear, currentYear-1, currentYear-2];
-
-                let analysisContent = '';
-                if (loading) {
-                    analysisContent = `<div class="flex justify-center p-10"><div class="loader-dark"></div></div>`;
-                } else if (data) {
-                    // IQRA GRID
-                    const iqraGrid = [1,2,3,4,5,6].map(i => `
-                        <div class="bg-green-50 p-3 rounded-xl border border-green-100 text-center">
-                            <div class="text-xs text-green-600 font-bold uppercase mb-1">Iqra ${i}</div>
-                            <div class="text-2xl font-bold text-slate-800">${data.iqraBreakdown[i]}</div>
-                        </div>
-                    `).join('');
-
-                    // JUZ GRID
-                    const juzGrid = Array.from({length: 30}, (_, i) => i + 1).map(j => `
-                        <div class="bg-blue-50 p-2 rounded-lg border border-blue-100 text-center">
-                            <div class="text-[10px] text-blue-500 font-bold uppercase">Juz ${j}</div>
-                            <div class="text-lg font-bold text-slate-800">${data.juzBreakdown[j]}</div>
-                        </div>
-                    `).join('');
-
-                    analysisContent = `
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 animate-in fade-in slide-in-from-bottom-4">
-                            <!-- Total Card -->
-                            <div class="bg-white p-5 rounded-2xl shadow-sm border flex items-center justify-between">
-                                <div><p class="text-sm text-slate-500 font-medium">Jumlah Murid</p><h3 class="text-3xl font-bold text-slate-800">${data.total}</h3></div>
-                                <div class="bg-slate-100 p-3 rounded-xl text-slate-600"><i data-lucide="users" class="w-6 h-6"></i></div>
-                            </div>
-                            <!-- Iqra Card -->
-                            <div class="bg-white p-5 rounded-2xl shadow-sm border flex items-center justify-between">
-                                <div><p class="text-sm text-green-600 font-medium">Bacaan Iqra</p><h3 class="text-3xl font-bold text-slate-800">${data.iqraTotal}</h3></div>
-                                <div class="bg-green-50 p-3 rounded-xl text-green-600"><i data-lucide="book-open" class="w-6 h-6"></i></div>
-                            </div>
-                            <!-- Quran Card -->
-                            <div class="bg-white p-5 rounded-2xl shadow-sm border flex items-center justify-between">
-                                <div><p class="text-sm text-blue-600 font-medium">Al-Quran</p><h3 class="text-3xl font-bold text-slate-800">${data.quranTotal}</h3></div>
-                                <div class="bg-blue-50 p-3 rounded-xl text-blue-600"><i data-lucide="book" class="w-6 h-6"></i></div>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-6 duration-700">
-                            <!-- Iqra Breakdown -->
-                            <div class="bg-white p-6 rounded-2xl shadow-sm border">
-                                <h3 class="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2"><i data-lucide="bar-chart-2" class="w-5 h-5 text-green-600"></i> Pecahan Iqra</h3>
-                                <div class="grid-iqra">${iqraGrid}</div>
-                            </div>
-                            
-                            <!-- Quran Breakdown -->
-                            <div class="bg-white p-6 rounded-2xl shadow-sm border">
-                                <h3 class="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2"><i data-lucide="pie-chart" class="w-5 h-5 text-blue-600"></i> Pecahan Juzuk</h3>
-                                <div class="grid-juz">${juzGrid}</div>
-                            </div>
-                        </div>
-                    `;
+                if(currentUser.role === 'admin') {
+                    menuItems.push({ id: 'admin_panel', label: 'Pengurusan Data', icon: Database });
                 }
 
-                content = `
-                    <div class="flex flex-col h-full">
-                        <div class="bg-white p-4 rounded-2xl shadow-sm border mb-6 flex flex-wrap gap-3 items-center">
-                            <!-- Filters -->
-                            <div class="flex-1 min-w-[150px]">
-                                <label class="text-xs font-bold text-slate-500 ml-1">Kelas</label>
-                                <select onchange="setAnalysisFilter('class', this.value)" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500">
-                                    <option value="">Semua Kelas</option>
-                                    ${classes.map(c => `<option value="${c}" ${filter.class===c?'selected':''}>${c}</option>`).join('')}
-                                </select>
+                return (
+                    <>
+                        {isOpen && <div className="fixed inset-0 bg-black/50 z-20 lg:hidden" onClick={toggle}></div>}
+                        <div className={`fixed lg:static inset-y-0 left-0 w-64 bg-emerald-800 text-white z-30 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 sidebar-transition flex flex-col shadow-2xl`}>
+                            <div className="p-6 border-b border-emerald-700">
+                                <h1 className="text-xl font-bold flex flex-col">
+                                    <span className="flex items-center gap-2"><Book className="text-emerald-300"/> Digitalisasi Panitia</span>
+                                    <span className="text-xs text-emerald-300 font-normal mt-1">Pendidikan Islam</span>
+                                </h1>
                             </div>
-                            <div class="w-32">
-                                <label class="text-xs font-bold text-slate-500 ml-1">Bulan</label>
-                                <select onchange="setAnalysisFilter('month', this.value)" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500">
-                                    <option value="">Terkini</option>
-                                    ${months.map((m,i) => `<option value="${i+1}" ${parseInt(filter.month)===i+1?'selected':''}>${m}</option>`).join('')}
-                                </select>
-                            </div>
-                            <div class="w-24">
-                                <label class="text-xs font-bold text-slate-500 ml-1">Tahun</label>
-                                <select onchange="setAnalysisFilter('year', this.value)" class="w-full p-2.5 bg-slate-50 border rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500">
-                                    ${years.map(y => `<option value="${y}" ${parseInt(filter.year)===y?'selected':''}>${y}</option>`).join('')}
-                                </select>
+                            
+                            <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+                                {menuItems.map(item => (
+                                    <button 
+                                        key={item.id} 
+                                        onClick={() => { onChangeView(item.id); if(window.innerWidth < 1024) toggle(); }}
+                                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeView === item.id ? 'bg-emerald-600 text-white shadow-lg' : 'text-emerald-100 hover:bg-emerald-700'}`}
+                                    >
+                                        <item.icon size={20} />
+                                        <span className="font-medium">{item.label}</span>
+                                    </button>
+                                ))}
+                            </nav>
+
+                            <div className="p-4 border-t border-emerald-700 bg-emerald-900/50">
+                                <div className="flex items-center gap-3 mb-4">
+                                    {currentUser?.photoURL ? 
+                                        <img src={currentUser.photoURL} className="w-10 h-10 rounded-full border-2 border-emerald-500" /> : 
+                                        <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center font-bold">{currentUser?.name.charAt(0)}</div>
+                                    }
+                                    <div className="overflow-hidden">
+                                        <p className="text-sm font-bold truncate">{currentUser?.name}</p>
+                                        <p className="text-[10px] text-emerald-300 uppercase">{currentUser?.role}</p>
+                                    </div>
+                                </div>
+                                <Button variant="ghost" onClick={handleLogout} className="w-full justify-start text-red-200 hover:bg-red-900/50 hover:text-red-100">
+                                    <LogOut size={18}/> Log Keluar
+                                </Button>
                             </div>
                         </div>
-                        <div class="flex-1 overflow-y-auto pb-10">
-                            ${analysisContent}
+                    </>
+                );
+            };
+
+            // --- SCREENS ---
+
+            const LoadingScreen = () => (
+                 <div className="min-h-screen flex flex-col items-center justify-center bg-emerald-50 text-emerald-600">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mb-4"></div>
+                    <p>Memuatkan Portal...</p>
+                 </div>
+            );
+
+            const LoginScreen = () => (
+                <div className="min-h-screen w-full bg-emerald-50 flex flex-col items-center justify-center p-6">
+                    <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm text-center border-t-4 border-emerald-500 relative z-10">
+                        <div className="bg-emerald-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <Book size={40} className="text-emerald-600" />
+                        </div>
+                        <h1 className="text-2xl font-bold text-gray-800 mb-1">Portal Digitalisasi Panitia</h1>
+                        <p className="text-emerald-600 font-semibold mb-6">Pendidikan Islam</p>
+                        {authError && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4 border border-red-200">{authError}</div>}
+                        <Button onClick={handleGoogleLogin} variant="google" className="w-full justify-center py-3 shadow-sm">
+                            <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                            Log Masuk Google
+                        </Button>
+                    </div>
+                </div>
+            );
+
+            // 1. SKRIN LOG MASUK & GUEST
+            if (!currentUser || view === 'login') {
+                return (
+                    <div className="font-sans text-gray-800">
+                        {notification && (
+                            <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-fade-in-up">
+                                <div className="bg-gray-800 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-2">
+                                    <CheckCircle size={18} className="text-emerald-400" />
+                                    <span className="text-sm font-medium">{notification}</span>
+                                </div>
+                            </div>
+                        )}
+                        <LoginScreen />
+                    </div>
+                );
+            }
+            
+            // 2. APLIKASI UTAMA (SIDEBAR + KONTEN)
+            return (
+                <div className="font-sans flex min-h-screen bg-gray-50">
+                    {/* Notification Toast */}
+                    {notification && (
+                        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 animate-fade-in-up">
+                            <div className="bg-gray-800 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-2">
+                                <CheckCircle size={18} className="text-emerald-400" />
+                                <span className="text-sm font-medium">{notification}</span>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* SIDEBAR */}
+                    <Sidebar activeView={view} onChangeView={setView} isOpen={sidebarOpen} toggle={() => setSidebarOpen(!sidebarOpen)} />
+                    
+                    {/* MAIN CONTENT AREA */}
+                    <div className="flex-1 flex flex-col min-h-screen relative overflow-hidden transition-all lg:ml-0">
+                        {/* Mobile Header Toggle */}
+                        <div className="lg:hidden bg-emerald-800 text-white p-4 flex justify-between items-center shadow-md">
+                            <div className="flex items-center gap-2"><Book/> <span className="font-bold">Panitia PI</span></div>
+                            <button onClick={() => setSidebarOpen(true)}><Menu size={24}/></button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto">
+                            {view === 'portal_home' && <PortalHome currentUser={currentUser} students={students} setView={setView} />}
+                            {view === 'dashboard' && <Dashboard 
+                                currentUser={currentUser}
+                                students={students}
+                                searchTerm={searchTerm}
+                                setSearchTerm={setSearchTerm}
+                                filterClass={filterClass}
+                                setFilterClass={setFilterClass}
+                                assignedClass={assignedClass}
+                                setAssignedClass={setAssignedClass}
+                                myClasses={myClasses}
+                                analysisStats={analysisStats}
+                                setView={setView}
+                                setSelectedStudent={setSelectedStudent}
+                                handleDeleteHalaqah={handleDeleteHalaqah}
+                                handleDeleteStudent={handleDeleteStudent}
+                                uniqueClasses={uniqueClasses}
+                            />}
+                            {view === 'pbd_list' && <PBDListScreen students={students} uniqueClasses={uniqueClasses} handleUpdatePBD={handleUpdatePBD} />}
+                            {view === 'jqaf_home' && <JQAFHome />}
+                            {view === 'admin_panel' && <AdminDataPanel 
+                                students={students}
+                                analysisStats={analysisStats}
+                                teachersList={teachersList}
+                                whitelist={whitelist}
+                                appSettings={appSettings}
+                                currentUser={currentUser}
+                                setFilterClass={setFilterClass}
+                                filterClass={filterClass}
+                                uniqueClasses={uniqueClasses}
+                                addToWhitelist={addToWhitelist}
+                                removeUser={removeUser}
+                                approveTeacher={approveTeacher}
+                                handleSaveSettings={handleSaveSettings}
+                                downloadAllStudents={downloadAllStudents}
+                                handleImportStudents={handleImportStudents}
+                                setShowAddStudentModal={setShowAddStudentModal}
+                                studentFileRef={studentFileRef}
+                            />}
+                            
+                            {/* Sub-Views (Rendered full width but inside layout) */}
+                            {view === 'student_detail' && <StudentDetail selectedStudent={selectedStudent} records={records} handleToggleKhatam={handleToggleKhatam} handleUpdateTasmik={handleUpdateTasmik} setView={setView} setSelectedStudent={setSelectedStudent} />}
+                            {view === 'setup_halaqah' && <SetupHalaqahScreen assignedClass={assignedClass} uniqueClasses={uniqueClasses} students={students} currentUser={currentUser} setView={setView} handleSaveHalaqah={handleSaveHalaqah} />}
                         </div>
                     </div>
-                `;
 
-            } else if (state.activeTab === 'guru') {
-                const rows = state.users.map((u, idx) => {
-                    const isProtected = u.role === 'admin';
-                    return `<tr class="border-b hover:bg-slate-50"><td class="p-4 text-center text-slate-500">${idx+1}</td><td class="p-4 font-medium">${u.nama}</td><td class="p-4"><span class="px-2 py-1 rounded text-xs uppercase ${u.role==='admin'?'bg-purple-100 text-purple-700':'bg-blue-50 text-blue-600'}">${u.role}</span></td><td class="p-4 font-mono text-slate-500">${u.ic_akhir || '-'}</td><td class="p-4 text-right flex justify-end gap-2">${!isProtected ? `<button onclick="handleDeleteRecord(event, '${USERS_COL}', '${u.id}')" class="text-red-500 hover:text-red-700 text-xs font-bold px-3 py-1 border border-red-200 rounded bg-red-50 hover:bg-red-100 transition-colors">Padam</button>` : ''}</td></tr>`;
-                }).join('');
-                content = `<div class="max-w-4xl mx-auto"><div class="flex justify-between items-center mb-6"><h2 class="text-2xl font-bold text-slate-800">Senarai Guru</h2><div class="flex gap-2"><button onclick="handleDeleteAll('guru')" class="bg-red-100 text-red-600 px-4 py-2 rounded-lg text-sm font-bold flex gap-2 items-center"><i data-lucide="alert-octagon" class="w-4 h-4"></i> Padam Semua</button><button onclick="openModal('guru')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm flex gap-2 items-center"><i data-lucide="plus" class="w-4 h-4"></i> Tambah</button></div></div><div class="bg-white rounded-2xl shadow-sm border overflow-hidden"><table class="w-full text-left text-sm"><thead class="bg-slate-50 border-b"><tr><th class="p-4 w-10">#</th><th class="p-4">Nama</th><th class="p-4">Peranan</th><th class="p-4">Login</th><th class="p-4 text-right">Aksi</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
-            } else if (state.activeTab === 'murid') {
-                const rows = getFilteredStudents().map((s, idx) => `<tr class="border-b hover:bg-slate-50"><td class="p-4 text-center text-slate-500">${idx+1}</td><td class="p-4 font-medium">${s.nama_murid}</td><td class="p-4"><span class="bg-slate-100 border px-2 py-0.5 rounded text-xs">${s.kelas}</span></td><td class="p-4 text-slate-600">${state.users.find(u => u.id === s.guru_tasmik_id)?.nama || '-'}</td><td class="p-4 text-xs text-slate-500">${s.last_iqra_level ? `Iqra ${s.last_iqra_level}` : (s.last_quran_page ? `Quran MS ${s.last_quran_page}` : '-')}</td><td class="p-4 text-right flex justify-end gap-2"><button onclick="openModal('murid', '${s.id}')" class="text-blue-500 hover:bg-blue-50 p-2"><i data-lucide="edit" class="w-4 h-4"></i></button><button onclick="handleDeleteRecord(event, '${STUDENTS_COL}', '${s.id}')" class="text-red-500 hover:text-red-700 text-xs font-bold px-3 py-1 border border-red-200 rounded bg-red-50 hover:bg-red-100 transition-colors">Padam</button></td></tr>`).join('');
-                content = `<div class="max-w-6xl mx-auto"><div class="bg-white p-4 rounded-2xl shadow-sm border mb-6 flex flex-wrap items-center gap-4"><div class="flex items-center gap-2 border rounded-lg px-3 py-2 bg-slate-50 flex-1"><i data-lucide="filter" class="w-4 h-4 text-slate-400"></i><select onchange="setAdminFilter(this.value)" class="bg-transparent outline-none text-sm w-full"><option value="">Semua Kelas</option>${getUniqueClasses().map(c => `<option value="${c}" ${state.filterClassAdmin===c?'selected':''}>${c}</option>`).join('')}</select></div><div class="flex items-center gap-2 border rounded-lg px-3 py-2 bg-slate-50 flex-1"><i data-lucide="search" class="w-4 h-4 text-slate-400"></i><input type="text" placeholder="Cari nama..." oninput="setSearchTerm(this.value)" class="bg-transparent outline-none text-sm w-full"/></div><button onclick="handleDeleteAll('murid')" class="bg-red-100 text-red-600 px-4 py-2 rounded-lg text-sm font-bold whitespace-nowrap flex gap-2 items-center"><i data-lucide="alert-octagon" class="w-4 h-4"></i> Padam Murid</button><button onclick="openModal('murid')" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm whitespace-nowrap flex gap-2 items-center"><i data-lucide="plus" class="w-4 h-4"></i> Tambah</button></div><div class="bg-white rounded-2xl shadow-sm border overflow-hidden"><table class="w-full text-left text-sm"><thead class="bg-slate-50 border-b"><tr><th class="p-4 w-10">#</th><th class="p-4">Nama</th><th class="p-4">Kelas</th><th class="p-4">Guru Tasmik</th><th class="p-4">Terkini</th><th class="p-4 text-right">Aksi</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
-            } else if (state.activeTab === 'import') {
-                content = `<div class="max-w-2xl mx-auto text-center bg-white p-10 rounded-2xl shadow-sm border"><div class="bg-blue-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6"><i data-lucide="upload" class="w-8 h-8 text-blue-600"></i></div><h3 class="font-bold text-xl mb-2">Import CSV Murid</h3><p class="text-slate-500 mb-8 text-sm">Format CSV: <code>nama,kelas,nama_guru</code></p><div class="flex flex-col gap-4"><label class="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-bold inline-flex items-center justify-center gap-2 shadow-lg active:scale-95"><i data-lucide="upload" class="w-5 h-5"></i> Pilih Fail CSV <input type="file" accept=".csv" class="hidden" onchange="handleCSVImport(this)"/></label><div class="border-t pt-6 mt-2"><h4 class="font-bold text-slate-700 mb-3 flex items-center justify-center gap-2"><i data-lucide="sheet" class="w-4 h-4"></i> Integrasi Google Sheet</h4><input type="text" id="sheetUrl" class="w-full p-3 border rounded-xl text-sm mb-3" placeholder="URL Web App Google Script..." value="${state.config.url||''}"><button onclick="saveSheetUrl()" class="bg-green-600 text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-green-700 w-full">Simpan URL Sheet</button></div></div></div>`;
-            }
-
-            return `<div class="min-h-screen bg-slate-100 font-sans flex flex-col md:flex-row h-full"><div class="bg-white w-full md:w-64 flex-shrink-0 border-r z-10 shadow-sm flex flex-col"><div class="p-6 border-b"><h1 class="font-bold text-xl text-blue-600 flex items-center gap-2"><i data-lucide="database" class="w-6 h-6"></i> Admin</h1></div><nav class="p-2 space-y-1 flex-1">${navItems}</nav><div class="p-4 border-t space-y-2"><button onclick="handleLogout()" class="flex w-full items-center gap-3 p-3 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-xl"><i data-lucide="log-out" class="w-4 h-4"></i> Keluar</button><button onclick="handleSystemReset()" class="flex w-full items-center gap-3 p-3 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-xl"><i data-lucide="refresh-cw" class="w-4 h-4"></i> Reset Sistem</button></div></div><main class="flex-1 p-4 md:p-8 overflow-y-auto relative h-full">${content}</main></div>`;
+                    {/* Modals */}
+                    {showAddStudentModal && <AddStudentModal onClose={() => setShowAddStudentModal(false)} onSave={handleAddStudent} existingClasses={uniqueClasses}/>}
+                </div>
+            );
         }
 
-        function setupEventListeners() { document.getElementById('loginForm')?.addEventListener('submit', handleLogin); }
-        initListeners();
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
     </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/vcd15cbe7772f49c399c6a5babf22c1241717689176015" integrity="sha512-ZpsOmlRQV6y907TI0dKBHq9Md29nnaEIPlkf84rnaERnq6zvWvPUqr2ft8M1aS28oN72PdrCzSjY4U6VaAw1EQ==" data-cf-beacon='{"version":"2024.11.0","token":"3f0a5264017e44f8a10b029217dcb89d","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
