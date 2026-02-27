@@ -403,12 +403,12 @@
             uniqueClasses
         }) => {
             const [analysisModal, setAnalysisModal] = useState(null); 
-            // Filter baseSubset mengikut kelas yang dipilih untuk tujuan analisis
+            // Filter baseSubset mengikut kelas yang dipilih untuk tujuan analisis (Hanya papar murid guru sahaja jika guru log masuk)
             const baseSubset = useMemo(() => {
                 if (currentUser.role === 'admin') {
                     return students.filter(s => filterClass === 'Semua' || s.class === filterClass);
                 } else {
-                    if (assignedClass) return students.filter(s => s.class === assignedClass);
+                    if (assignedClass) return students.filter(s => s.class === assignedClass && s.assignedTeacherEmail === currentUser.email);
                     return students.filter(s => s.assignedTeacherEmail === currentUser.email);
                 }
             }, [students, filterClass, assignedClass, currentUser]);
@@ -433,7 +433,7 @@
             const handleShowAnalysis = (type, param) => {
                 let list = [];
                 let title = '';
-                // Gunakan baseSubset (yang sudah ditapis ikut kelas) untuk senarai modal
+                // Gunakan baseSubset (yang sudah ditapis ikut kelas dan hak guru) untuk senarai modal
                 if (type === 'total') { list = baseSubset; title = `Semua Murid`; }
                 else if (type === 'iqra_total') { list = baseSubset.filter(s => s.level.startsWith('Iqra')); title = 'Semua Murid Iqra'; }
                 else if (type === 'quran_total') { list = baseSubset.filter(s => s.level === 'Al-Quran'); title = 'Semua Murid Al-Quran'; }
@@ -589,19 +589,19 @@
         };
 
         // --- PBD LIST COMPONENT ---
-        const PBDList = () => {
-            return null; // Placeholder
-        };
-        
-        // --- VIEW: PBD LIST (FULL CODE) ---
-        const PBDListScreen = ({ students, uniqueClasses, handleUpdatePBD }) => {
-            const [selectedClass, setSelectedClass] = useState(''); // Default kosong
+        const PBDListScreen = ({ students, uniqueClasses, handleUpdatePBD, currentUser }) => {
+            const [selectedClass, setSelectedClass] = useState('');
             const [editStudent, setEditStudent] = useState(null);
             
+            // Filter classStudents supaya hanya tunjuk murid yang di-assign kepada guru tersebut
             const classStudents = useMemo(() => {
                 if (!selectedClass) return [];
-                return students.filter(s => s.class === selectedClass).sort((a,b) => a.name.localeCompare(b.name));
-            }, [students, selectedClass]);
+                let filtered = students.filter(s => s.class === selectedClass);
+                if (currentUser?.role === 'teacher') {
+                    filtered = filtered.filter(s => s.assignedTeacherEmail === currentUser.email);
+                }
+                return filtered.sort((a,b) => a.name.localeCompare(b.name));
+            }, [students, selectedClass, currentUser]);
 
             const handlePrint = () => {
                 if(!selectedClass) return alert("Sila pilih kelas dahulu.");
@@ -810,7 +810,7 @@
                                         </tbody>
                                     </table>
                                 </div>
-                                {classStudents.length === 0 && <div className="p-8 text-center text-gray-400 italic">Tiada murid dalam kelas ini.</div>}
+                                {classStudents.length === 0 && <div className="p-8 text-center text-gray-400 italic">Tiada murid dalam kelas ini yang ditugaskan kepada anda.</div>}
                             </div>
                         </>
                     )}
@@ -1137,52 +1137,57 @@
         };
 
         // --- VIEW: PORTAL HOME (UPDATED) ---
-        const PortalHome = ({ currentUser, students, setView }) => (
-            <div className="p-6 max-w-6xl mx-auto">
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-gray-800">Selamat Datang, {currentUser.name}!</h1>
-                    <p className="text-gray-500">Portal Digitalisasi Panitia Pendidikan Islam</p>
-                </div>
-                
-                <DailyHadis />
+        const PortalHome = ({ currentUser, students, setView }) => {
+            // Tapis statistik laman utama mengikut hak guru
+            const myStudents = currentUser?.role === 'admin' ? students : students.filter(s => s.assignedTeacherEmail === currentUser.email);
+            
+            return (
+                <div className="p-6 max-w-6xl mx-auto">
+                    <div className="mb-8">
+                        <h1 className="text-3xl font-bold text-gray-800">Selamat Datang, {currentUser.name}!</h1>
+                        <p className="text-gray-500">Portal Digitalisasi Panitia Pendidikan Islam</p>
+                    </div>
+                    
+                    <DailyHadis />
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div onClick={() => setView('dashboard')} className="bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl p-6 text-white shadow-lg cursor-pointer transform hover:scale-105 transition-all">
-                        <Book size={40} className="mb-4 opacity-80"/>
-                        <h3 className="text-xl font-bold">e-Tasmik</h3>
-                        <p className="text-emerald-100 text-sm mt-1">Rekod bacaan Al-Quran & Iqra murid.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div onClick={() => setView('dashboard')} className="bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl p-6 text-white shadow-lg cursor-pointer transform hover:scale-105 transition-all">
+                            <Book size={40} className="mb-4 opacity-80"/>
+                            <h3 className="text-xl font-bold">e-Tasmik</h3>
+                            <p className="text-emerald-100 text-sm mt-1">Rekod bacaan Al-Quran & Iqra murid.</p>
+                        </div>
+                        <div onClick={() => setView('pbd_list')} className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl p-6 text-white shadow-lg cursor-pointer transform hover:scale-105 transition-all">
+                            <Clipboard size={40} className="mb-4 opacity-80"/>
+                            <h3 className="text-xl font-bold">Pentaksiran (PBD)</h3>
+                            <p className="text-blue-100 text-sm mt-1">Rekod TP untuk Akidah, Ibadah, Jawi & lain-lain.</p>
+                        </div>
+                        <div onClick={() => setView('jqaf_home')} className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-2xl p-6 text-white shadow-lg cursor-pointer transform hover:scale-105 transition-all">
+                            <Star size={40} className="mb-4 opacity-80"/>
+                            <h3 className="text-xl font-bold">j-QAF</h3>
+                            <p className="text-purple-100 text-sm mt-1">Modul Pemulihan Jawi & Khatam Quran.</p>
+                        </div>
                     </div>
-                    <div onClick={() => setView('pbd_list')} className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl p-6 text-white shadow-lg cursor-pointer transform hover:scale-105 transition-all">
-                        <Clipboard size={40} className="mb-4 opacity-80"/>
-                        <h3 className="text-xl font-bold">Pentaksiran (PBD)</h3>
-                        <p className="text-blue-100 text-sm mt-1">Rekod TP untuk Akidah, Ibadah, Jawi & lain-lain.</p>
-                    </div>
-                    <div onClick={() => setView('jqaf_home')} className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-2xl p-6 text-white shadow-lg cursor-pointer transform hover:scale-105 transition-all">
-                        <Star size={40} className="mb-4 opacity-80"/>
-                        <h3 className="text-xl font-bold">j-QAF</h3>
-                        <p className="text-purple-100 text-sm mt-1">Modul Pemulihan Jawi & Khatam Quran.</p>
-                    </div>
-                </div>
 
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                    <h3 className="font-bold text-gray-800 mb-4">Statistik Ringkas</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        <div className="bg-gray-50 p-4 rounded-lg text-center">
-                            <span className="block text-2xl font-bold text-gray-700">{students.length}</span>
-                            <span className="text-xs text-gray-500 uppercase">Jumlah Murid</span>
-                        </div>
-                        <div className="bg-emerald-50 p-4 rounded-lg text-center">
-                            <span className="block text-2xl font-bold text-emerald-600">{students.filter(s=>s.level==='Al-Quran').length}</span>
-                            <span className="text-xs text-emerald-500 uppercase">Murid Al-Quran</span>
-                        </div>
-                        <div className="bg-yellow-50 p-4 rounded-lg text-center">
-                            <span className="block text-2xl font-bold text-yellow-600">{students.filter(s=>s.isKhatam).length}</span>
-                            <span className="text-xs text-yellow-500 uppercase">Telah Khatam</span>
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h3 className="font-bold text-gray-800 mb-4">Statistik Ringkas {currentUser.role === 'teacher' ? '(Halaqah Anda)' : '(Keseluruhan)'}</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="bg-gray-50 p-4 rounded-lg text-center">
+                                <span className="block text-2xl font-bold text-gray-700">{myStudents.length}</span>
+                                <span className="text-xs text-gray-500 uppercase">Jumlah Murid</span>
+                            </div>
+                            <div className="bg-emerald-50 p-4 rounded-lg text-center">
+                                <span className="block text-2xl font-bold text-emerald-600">{myStudents.filter(s=>s.level==='Al-Quran').length}</span>
+                                <span className="text-xs text-emerald-500 uppercase">Murid Al-Quran</span>
+                            </div>
+                            <div className="bg-yellow-50 p-4 rounded-lg text-center">
+                                <span className="block text-2xl font-bold text-yellow-600">{myStudents.filter(s=>s.isKhatam).length}</span>
+                                <span className="text-xs text-yellow-500 uppercase">Telah Khatam</span>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        );
+            );
+        };
 
         // --- LOGIK APLIKASI UTAMA ---
         function App() {
@@ -1226,9 +1231,20 @@
                 return [...new Set(classes)].sort();
             }, [students, currentUser]);
 
-            // UPDATE: Analisis Terperinci (Admin)
+            // UPDATE: Analisis Terperinci (Admin & Teacher)
             const analysisStats = useMemo(() => {
-                const subset = students.filter(s => filterClass === 'Semua' || s.class === filterClass);
+                let subset;
+                if (currentUser?.role === 'admin') {
+                    subset = students.filter(s => filterClass === 'Semua' || s.class === filterClass);
+                } else if (currentUser?.role === 'teacher') {
+                    if (assignedClass) {
+                        subset = students.filter(s => s.class === assignedClass && s.assignedTeacherEmail === currentUser.email);
+                    } else {
+                        subset = students.filter(s => s.assignedTeacherEmail === currentUser.email);
+                    }
+                } else {
+                    subset = [];
+                }
                 
                 const stats = {
                     iqra: { 'Iqra 1': 0, 'Iqra 2': 0, 'Iqra 3': 0, 'Iqra 4': 0, 'Iqra 5': 0, 'Iqra 6': 0 },
@@ -1262,7 +1278,7 @@
                     }
                 });
                 return stats;
-            }, [students, filterClass]);
+            }, [students, filterClass, assignedClass, currentUser]);
 
             // --- EFFECTS ---
 
@@ -1767,7 +1783,7 @@
                                 handleDeleteStudent={handleDeleteStudent}
                                 uniqueClasses={uniqueClasses}
                             />}
-                            {view === 'pbd_list' && <PBDListScreen students={students} uniqueClasses={uniqueClasses} handleUpdatePBD={handleUpdatePBD} />}
+                            {view === 'pbd_list' && <PBDListScreen students={students} uniqueClasses={uniqueClasses} handleUpdatePBD={handleUpdatePBD} currentUser={currentUser} />}
                             {view === 'jqaf_home' && <JQAFHome />}
                             {view === 'admin_panel' && <AdminDataPanel 
                                 students={students}
